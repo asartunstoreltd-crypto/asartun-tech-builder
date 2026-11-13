@@ -1,0 +1,23 @@
+.adm,.adm-center{font-family:system-ui,Segoe UI,Roboto,sans-serif;color:#1b2a41;min-height:100vh;background:#f0f7ff}
+.adm-center{display:flex;align-items:center;justify-content:center;padding:16px}
+.adm-card{background:#fff;border-radius:16px;padding:20px;margin:14px 0;box-shadow:0 4px 14px #0b5ed71a;max-width:100%}
+.adm-center .adm-card{width:100%;max-width:380px;text-align:center}
+.adm-card label{display:block;text-align:left;font-weight:600;margin:10px 0}
+.adm-card input{width:100%;padding:12px;font-size:1rem;border:2px solid #c9d8f0;border-radius:12px;margin-top:4px}
+.adm-logo{font-size:2.6rem}.adm h1,.adm-center h1{color:#0b5ed7;font-size:1.3rem;margin:.2em 0}
+.adm-sub{color:#e67e00;font-weight:700;font-size:.85rem}.adm-err{color:#c62828;font-weight:600}
+.adm-btn{background:#0b5ed7;color:#fff;border:0;border-radius:12px;padding:12px 18px;font-weight:700;cursor:pointer;min-height:44px;margin-top:8px}
+.adm-btn.ghost{background:#dbe8ff;color:#0b5ed7;margin:0}.adm-btn:disabled{opacity:.5}
+.adm-foot{color:#5a6b85;font-size:.8rem;text-align:center;padding:16px}
+.adm-top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;background:#fff;padding:12px 16px;box-shadow:0 2px 8px #0b5ed71a}
+.adm-user{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.85rem}.adm-roles{background:#ffd43b;border-radius:99px;padding:4px 10px;font-weight:700}
+.adm-mail{color:#5a6b85}.adm-main{max-width:1000px;margin:0 auto;padding:16px}
+.adm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.adm-stat{background:#fff;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:4px;box-shadow:0 4px 14px #0b5ed71a}
+.adm-stat b{font-size:1.9rem;color:#0b5ed7}.adm-ico{font-size:1.6rem}
+.adm-bar{display:grid;grid-template-columns:1fr 1.4fr auto;gap:10px;align-items:center;margin:8px 0;font-size:.9rem}
+.adm-bar div{background:#dbe8ff;border-radius:99px;height:10px;overflow:hidden}.adm-bar i{display:block;height:100%;background:#2fb344}
+.adm-cols{display:flex;gap:8px;align-items:flex-end;height:140px}
+.adm-cols div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+.adm-cols i{display:block;width:100%;background:#0b5ed7;border-radius:6px 6px 0 0;min-height:2px}
+@media (max-width:560px){.adm-bar{grid-template-columns:1fr}}
