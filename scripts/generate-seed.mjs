@@ -7,8 +7,11 @@ import { cassavaMission } from '../src/data/cassavaMission.js'
 import { potatoMission } from '../src/data/potatoMission.js'
 import { wasteMission } from '../src/data/wasteMission.js'
 import { compostMission } from '../src/data/compostMission.js'
+import { solarMission } from '../src/data/solarMission.js'
+import { robotMission } from '../src/data/robotMission.js'
+import { deviceMission } from '../src/data/deviceMission.js'
 
-const content = { cassava: cassavaMission, potato: potatoMission, waste: wasteMission, compost: compostMission }
+const content = { cassava: cassavaMission, potato: potatoMission, waste: wasteMission, compost: compostMission, solar: solarMission, robot: robotMission, device: deviceMission }
 const categories = [
   { slug: 'food-agriculture', pos: 1, name: { ha: 'Abinci da Noma', en: 'Food and Farming' } },
   { slug: 'environment',      pos: 2, name: { ha: 'Muhalli da Sake Amfani', en: 'Environment and Reuse' } },
