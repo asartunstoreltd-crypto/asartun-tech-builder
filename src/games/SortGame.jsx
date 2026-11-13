@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useLang } from '../lib/i18n.jsx'
 
-// Two-choice sorting challenge. Default: resource or new product?
-// Pass `options` and `askKey` for other topics (see the safety challenge in MissionEngine).
+// Sorting challenge: tap the group an item belongs to. Default: resource or new product?
+// `options` = groups. Each: {kind, icon, labelKey} (built-in text) or {kind, icon, label:{ha,en}} (admin-made).
+// `ask` = {ha,en} question text (admin-made) or `askKey` (built-in).
 const defaultOptions = [{ kind: 'resource', labelKey: 'resource', icon: '🌍' }, { kind: 'product', labelKey: 'product', icon: '📦' }]
 
-export default function SortGame({ items, onDone, options = defaultOptions, askKey = 'sortAsk' }) {
+export default function SortGame({ items, onDone, options = defaultOptions, askKey = 'sortAsk', ask }) {
   const { t, L } = useLang()
   const [i, setI] = useState(0)
   const [fb, setFb] = useState(null)
@@ -16,12 +17,12 @@ export default function SortGame({ items, onDone, options = defaultOptions, askK
   return (
     <div className="card center-text">
       <p className="small">{i + 1} / {items.length}</p>
-      <div className="big bounce">{item.emoji}</div>
+      {item.imageUrl ? <img className="mimg" src={item.imageUrl} alt="" /> : <div className="big bounce">{item.emoji}</div>}
       <h3>{L(item.name)}</h3>
-      <p>{t(askKey)}</p>
+      <p>{ask ? L(ask) : t(askKey)}</p>
       {fb !== 'ok' && <div className="two">
         {options.map((o, n) => (
-          <button key={o.kind} className={'btn' + (n === 1 ? ' alt' : '')} onClick={() => setFb(item.kind === o.kind ? 'ok' : 'no')}>{o.icon} {t(o.labelKey)}</button>
+          <button key={o.kind} className={'btn' + (n % 2 === 1 ? ' alt' : '')} onClick={() => setFb(item.kind === o.kind ? 'ok' : 'no')}>{o.icon} {o.label ? L(o.label) : t(o.labelKey)}</button>
         ))}
       </div>}
       {fb === 'no' && <p className="bad">{t('sortWrong')} {L(item.why)}</p>}

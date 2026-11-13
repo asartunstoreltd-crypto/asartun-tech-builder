@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLang } from './lib/i18n.jsx'
-import { missions } from './data/missions'
 import MissionEngine from './components/MissionEngine'
-import { content } from './data/registry'
+import { useMissions } from './lib/useMissions.js'
 import NavBar from './components/NavBar'
 import LangSwitcher from './components/LangSwitcher'
 import Rewards from './pages/Rewards'
@@ -15,6 +14,7 @@ const load = () => { try { return { ...empty, ...JSON.parse(localStorage.getItem
 
 export default function App() {
   const { t, L } = useLang()
+  const { list: missions, content, loading } = useMissions()
   const [s, setS] = useState(load)
   const [view, setView] = useState(s.nick ? 'dashboard' : 'welcome')
   const [name, setName] = useState('')
@@ -43,7 +43,7 @@ export default function App() {
   else body = (
     <>
       {view === 'rewards' && <Rewards state={s} />}
-      {view === 'parent' && <Parent state={s} />}
+      {view === 'parent' && <Parent state={s} content={content} />}
       {view === 'settings' && <Settings state={s} setState={setS} onReset={reset} />}
       {view === 'dashboard' && (
         <div className="page">
@@ -52,10 +52,11 @@ export default function App() {
             <div className="pts">⭐ {s.points}</div>
           </header>
           <h3>{t('missions')}</h3>
+          {loading && <p className="small">⏳</p>}
           <div className="grid">
             {missions.map((m) => (
               <button key={m.id} className={'card mission' + (m.ready ? '' : ' locked')} disabled={!m.ready} onClick={() => setView(m.id)}>
-                <span className="big">{m.ready ? m.emoji : '🔒'}</span>
+                {m.coverUrl && m.ready ? <img className="cover" src={m.coverUrl} alt="" /> : <span className="big">{m.ready ? m.emoji : '🔒'}</span>}
                 <b>{t('mission')} {String(m.no).padStart(2, '0')}</b><span>{L(m.title)}</span>
                 {!m.ready && <span className="small">{t('soon')}</span>}
               </button>

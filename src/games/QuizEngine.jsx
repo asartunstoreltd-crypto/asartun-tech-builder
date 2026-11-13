@@ -28,6 +28,7 @@ export default function QuizEngine({ questions, onCorrect, onFinish, idPrefix })
     <div className="card">
       <p className="small">{t('qOf', { n: i + 1, m: questions.length })}</p>
       <h3>{L(cur.q)}</h3>
+      {cur.imageUrl && <img className="mimg" src={cur.imageUrl} alt="" />}
       {idPrefix && <AudioButton id={idPrefix + '.' + i} />}
       {cur.a.map((ans, n) => (
         <button key={n} onClick={() => choose(n)} disabled={tried.includes(n)}

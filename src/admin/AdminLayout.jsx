@@ -1,10 +1,10 @@
-import { Outlet } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import { useAdminAuth } from './AdminAuth.jsx'
 
 const roleLabel = { super_admin: 'Super Admin', content_manager: 'Content Manager', learning_analyst: 'Learning Analyst', media_manager: 'Media Manager' }
 
 export default function AdminLayout() {
-  const { session, roles, signOut } = useAdminAuth()
+  const { session, roles, signOut, hasRole } = useAdminAuth()
   return (
     <div className="adm">
       <header className="adm-top">
@@ -15,6 +15,12 @@ export default function AdminLayout() {
           <button className="adm-btn ghost" onClick={signOut}>Sign out</button>
         </div>
       </header>
+      <nav className="adm-nav">
+        <NavLink to="/admin/dashboard">Dashboard</NavLink>
+        {hasRole('content_manager') && <NavLink to="/admin/missions">Missions</NavLink>}
+        {hasRole('content_manager', 'media_manager') && <NavLink to="/admin/media">Media Library</NavLink>}
+        {hasRole('super_admin') && <NavLink to="/admin/activity">Activity log</NavLink>}
+      </nav>
       <main className="adm-main"><Outlet /></main>
       <footer className="adm-foot">ASARTUN TECH BUILDER · a product of ASARTUN STORE LIMITED</footer>
     </div>

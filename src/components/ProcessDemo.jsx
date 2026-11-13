@@ -32,7 +32,7 @@ export default function ProcessDemo({ items, result, summary, onFinished }) {
         <span className={'node end' + (i === last ? ' now' : '')}>{result.emoji}</span>
       </div>
       <div className="stagebox" key={i}>
-        <div className="big bounce">{cur.emoji}</div>
+        {cur.imageUrl ? <img className="mimg" src={cur.imageUrl} alt="" /> : <div className="big bounce">{cur.emoji}</div>}
         <p className="small">{t('stepN', { n: i + 1 })} / {items.length}</p>
         <h3>{L(cur.name)}</h3>
         <p>{L(cur.text)}</p>

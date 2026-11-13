@@ -4,7 +4,7 @@ import { activityLabels } from '../data/quizzes'
 import { badges } from '../data/missions'
 import { content } from '../data/registry'
 
-export default function Parent({ state }) {
+export default function Parent({ state, content: live }) {
   const { t, L } = useLang()
   const [a] = useState(() => 2 + Math.floor(Math.random() * 8))
   const [b] = useState(() => 3 + Math.floor(Math.random() * 7))
@@ -20,7 +20,7 @@ export default function Parent({ state }) {
       </div>
     </div>
   )
-  const list = Object.values(content).map((m) => {
+  const list = Object.values(live || content).map((m) => {
     const total = 2 + 2 * m.procedures.length + m.challenges.length
     const n = state.earned.filter((k) => k.startsWith(m.id + ':') && !k.includes(':quiz')).length
     return { m, pct: Math.min(100, Math.round((n / total) * 100)), done: state.earned.includes(m.id + ':finish') }

@@ -8,7 +8,10 @@ for (const p in files) {
   const m = p.match(/audio\/(ha|en)\/(.+)\.(mp3|m4a|wav|ogg)$/)
   if (m) index[m[1] + '/' + m[2]] = files[p]
 }
-export const getAudio = (lang, id) => index[lang + '/' + id] || null
+// Recordings uploaded in the admin panel (Supabase Storage) are registered here at run time.
+const remote = {}
+export const registerAudio = (entries) => Object.assign(remote, entries)   // {'ha/<id>': url}
+export const getAudio = (lang, id) => remote[lang + '/' + id] || index[lang + '/' + id] || null
 
 const clean = (s) => s.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '').replace(/\s+/g, ' ').trim()
 const guideKeys = ['gShow', 'gPractice', 'gChallenge', 'gQuiz']

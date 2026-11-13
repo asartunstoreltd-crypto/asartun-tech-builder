@@ -21,6 +21,7 @@ export default function AudioButton({ id }) {
     a.onended = () => setOn(false)
     a.play().then(() => setOn(true)).catch(() => setOn(false))
   }
+  if (!src) return null   // no recording uploaded = no button (nothing is faked)
   return (
     <button className="audio" disabled={!src} onClick={toggle} title={src ? t('listen') : t('listenSoon')} aria-label={t('listen')}>
       {on ? '⏹' : '🔊'} <span>{on ? t('stopAudio') : t('listen')}</span>
