@@ -8,6 +8,9 @@ import MissionList from './MissionList.jsx'
 import MissionEditor from './MissionEditor.jsx'
 import MediaLibrary from './MediaLibrary.jsx'
 import ActivityLog from './ActivityLog.jsx'
+import Learners from './Learners.jsx'
+import Premium from './Premium.jsx'
+import { OrganizationList, OrganizationDetail } from './Organizations.jsx'
 import './admin.css'
 
 // Mounted at /admin/*. Content routes are guarded again by role; the database enforces the same rules.
@@ -26,7 +29,13 @@ export default function AdminApp() {
             <Route element={<RequireAdmin roles={['content_manager', 'media_manager']} />}>
               <Route path="media" element={<MediaLibrary />} />
             </Route>
+            <Route element={<RequireAdmin roles={['learning_analyst']} />}>
+              <Route path="learners" element={<Learners />} />
+            </Route>
             <Route element={<RequireAdmin roles={['super_admin']} />}>
+              <Route path="organizations" element={<OrganizationList />} />
+              <Route path="organizations/:id" element={<OrganizationDetail />} />
+              <Route path="premium" element={<Premium />} />
               <Route path="activity" element={<ActivityLog />} />
             </Route>
           </Route>

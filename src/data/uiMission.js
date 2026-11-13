@@ -49,3 +49,25 @@ Object.assign(uiMission.en, {
   kidOk: '👧🏾 You can help, with an adult nearby', mixedNote: 'Some steps are for adults only (👩🏾‍🏭). For others you can help (👧🏾) with an adult nearby.',
   safetyAsk: 'Can I do this, or does an adult need to?', canDo: 'I can', askAdult: 'Ask an adult',
 })
+
+// Accounts, schools/companies, premium
+Object.assign(uiMission.ha, {
+  ageLabel: 'Shekarunka (ba dole ba)', orgCodeLabel: 'Lambar makaranta ko kamfani (idan akwai)',
+  orgCodeHelp: 'Idan malaminka ya ba ka lamba, rubuta ta. Malaminka zai iya ganin sunan wasanka da sakamakonka.',
+  joinOk: 'An haɗa ka da {org}! ✅', joinBad: 'Lambar ba ta aiki, ko makarantar ta cika.', joinBtn: 'Shiga',
+  mySchool: 'Makaranta ko kamfani', noSchool: 'Ba ka cikin wata makaranta ko kamfani.', leave: 'Fita',
+  canSee: '{org} na iya ganin sunan wasanka da sakamakonka.', leaveConfirm: 'Ka fita daga wannan ƙungiya?',
+  premiumLock: '⭐ Premium', premiumMsg: 'Wannan darasin na premium ne. Ka tambayi iyayenka ko malaminka.',
+  deleteOnline: 'Share bayanaina na kan layi', deleteConfirm: 'Share dukkan bayananka, har na kan layi?',
+  ageBands: { '': '—', '5-7': '5–7', '8-10': '8–10', '11-13': '11–13', '14-17': '14–17' },
+})
+Object.assign(uiMission.en, {
+  ageLabel: 'Your age (optional)', orgCodeLabel: 'School or company code (if you have one)',
+  orgCodeHelp: 'If your teacher gave you a code, type it. Your teacher can see your game name and your results.',
+  joinOk: 'You joined {org}! ✅', joinBad: 'The code does not work, or the group is full.', joinBtn: 'Join',
+  mySchool: 'School or company', noSchool: 'You are not in a school or company.', leave: 'Leave',
+  canSee: '{org} can see your game name and your results.', leaveConfirm: 'Leave this group?',
+  premiumLock: '⭐ Premium', premiumMsg: 'This lesson is premium. Ask your parent or teacher.',
+  deleteOnline: 'Delete my online record', deleteConfirm: 'Delete all your data, including online?',
+  ageBands: { '': '—', '5-7': '5–7', '8-10': '8–10', '11-13': '11–13', '14-17': '14–17' },
+})

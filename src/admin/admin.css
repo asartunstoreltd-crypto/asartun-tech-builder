@@ -69,3 +69,10 @@ a.adm-btn.ghost{color:#0b5ed7}
 .adm-tablewrap{overflow-x:auto}.adm-thumb{width:70px;height:50px;object-fit:cover;border-radius:6px;display:block}
 .adm-cellbtns{display:flex;gap:4px;flex-wrap:wrap}.adm-cellbtns .adm-btn{margin:0;padding:6px 10px;min-height:34px;font-size:.8rem}
 .adm-outline li{margin:4px 0}.adm-editor h4{margin:16px 0 4px}
+
+/* ---- learners / organizations ---- */
+.adm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+.adm-stat{background:#fff;border-radius:14px;padding:12px;text-align:center;box-shadow:0 2px 8px #0b5ed71a;display:flex;flex-direction:column;gap:2px}
+.adm-stat b{font-size:1.6rem}.adm-ico{font-size:1.4rem}
+.adm-click{cursor:pointer}.adm-click:hover{background:#f0f7ff}
+.adm-code{background:#fff3cd;border-radius:6px;padding:2px 8px;font-size:1.05rem;font-weight:800;letter-spacing:.08em}

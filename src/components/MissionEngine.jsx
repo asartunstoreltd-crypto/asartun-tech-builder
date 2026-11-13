@@ -20,7 +20,7 @@ const challengeTypes = {
   business: (c, done) => <BusinessCalculator onDone={done} />,
 }
 
-export default function MissionEngine({ mission, state, award, onExit }) {
+export default function MissionEngine({ mission, state, award, onExit, track }) {
   const { t, L } = useLang()
   const [stage, setStage] = useState(0)
   const [page, setPage] = useState(0)
@@ -45,13 +45,8 @@ export default function MissionEngine({ mission, state, award, onExit }) {
     </div>
   )
 
- const pages = Array.isArray(mission.teach) ? mission.teach : []
-const pg = pages[page] || {
-  emoji: '📚',
-  title: { ha: 'Ba a sami darasin ba', en: 'Lesson not found' },
-  lines: [],
-  warn: false,
-}
+  const pages = mission.teach
+  const pg = pages[page]
   const allShown = mission.procedures.every((p) => has('show-' + p.id))
   const anyPracticed = mission.procedures.some((p) => has('practice-' + p.id))
   const chal = mission.challenges[ch]
@@ -64,7 +59,7 @@ const pg = pages[page] || {
       <div className="steps">{names.map((n, i) => <span key={n} className={'dot' + (i === stage ? ' now' : i < stage ? ' past' : '')} title={n} />)}</div>
       <p className="small">{t('stageOf', { n: stage + 1, m: total })}: <b>{names[stage]}</b></p>
 
-      {cur === 'teach' && pages.length > 0 && (
+      {cur === 'teach' && (
         <div className={'card center-text' + (pg.warn ? ' warnbox' : '')} key={page}>
           <p className="small">{t('pageOf', { n: page + 1, m: pages.length })}</p>
           <div className="big bounce">{pg.emoji}</div>
@@ -116,7 +111,7 @@ const pg = pages[page] || {
       {cur === 'quiz' && (
         <div>
           <Guide say={t('gQuiz')} audioId="ui.gQuiz" />
-          <QuizEngine idPrefix={mission.id + '.quiz'} questions={mission.quiz} onCorrect={(i) => aw('quiz-' + i, rw.quiz)} onFinish={() => { aw('finish', rw.finish); next() }} />
+          <QuizEngine idPrefix={mission.id + '.quiz'} questions={mission.quiz} onCorrect={(i) => aw('quiz-' + i, rw.quiz)} onWrong={(i) => { if (track) track(key('quiz-' + i)) }} onFinish={() => { aw('finish', rw.finish); next() }} />
         </div>
       )}
 

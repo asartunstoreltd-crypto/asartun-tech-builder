@@ -5,7 +5,7 @@ import AudioButton from '../components/AudioButton'
 
 // TEST stage. Wrong answers are never punished: show the explanation, then try again.
 // questions [{q, a:[...], c:index, e:{ha,en}}]
-export default function QuizEngine({ questions, onCorrect, onFinish, idPrefix }) {
+export default function QuizEngine({ questions, onCorrect, onFinish, idPrefix, onWrong }) {
   const { t, L } = useLang()
   const [i, setI] = useState(0)
   const [tried, setTried] = useState([])
@@ -16,7 +16,7 @@ export default function QuizEngine({ questions, onCorrect, onFinish, idPrefix })
   const choose = (n) => {
     if (ok || tried.includes(n)) return
     if (n === cur.c) { setOk(true); if (tried.length === 0) setScore(score + 1); onCorrect(i) }
-    else setTried([...tried, n])
+    else { if (tried.length === 0 && onWrong) onWrong(i); setTried([...tried, n]) }
   }
   const advance = () => { if (i + 1 < questions.length) { setI(i + 1); setTried([]); setOk(false) } else setDone(true) }
   if (done) return (

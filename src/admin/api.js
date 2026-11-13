@@ -134,7 +134,7 @@ export function missionPatch(st) {
   st.chals.forEach((c) => { if (rules[c.key] === undefined) rules[c.key] = c.content.type === 'business' ? 15 : 5 })
   const stages = defaultStages.filter((s) => s === 'quiz' || s === 'reward' || m.stages.includes(s))
   return {
-    emoji: m.emoji || '🛠️', title: m.title, description: emptyLang(m.description) ? {} : m.description,
+    emoji: m.emoji || '🛠️', access: m.access || 'free', title: m.title, description: emptyLang(m.description) ? {} : m.description,
     category_id: m.category_id || null, age_min: Number(m.age_min) || 6, age_max: Number(m.age_max) || 12, difficulty: m.difficulty || 'beginner',
     cover_image_path: m.cover_image_path || null, estimated_minutes: m.estimated_minutes ? Number(m.estimated_minutes) : null,
     objectives: m.objectives, stages, reward_rules: rules, engine_options: st.eo,

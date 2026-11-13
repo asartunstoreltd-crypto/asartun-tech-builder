@@ -107,13 +107,13 @@ export default function MediaLibrary() {
       </table></div>
 
       {usage && (
-        <Confirm title="Where this file is used" yesText="Close" onYes={() => setUsage(null)} onNo={() => setUsage(null)}>
+        <Confirm title="Where this file is used" yesText="Close" danger={false} onYes={() => setUsage(null)} onNo={() => setUsage(null)}>
           {usage.rows.length === 0 ? <p>Not used by any mission yet.</p>
             : <ul>{usage.rows.map((r, i) => <li key={i}>{r.slug} ({stageLabel[r.status] || r.status}): {r.location}</li>)}</ul>}
         </Confirm>
       )}
       {del && publishedUse.length > 0 && (
-        <Confirm title="This file cannot be deleted" yesText="OK" onYes={() => setDel(null)} onNo={() => setDel(null)}>
+        <Confirm title="This file cannot be deleted" yesText="OK" danger={false} onYes={() => setDel(null)} onNo={() => setDel(null)}>
           <p>It is used by a <b>published</b> mission. Replace the file instead, or unpublish the mission first.</p>
           <ul>{publishedUse.map((r, i) => <li key={i}>{r.slug}: {r.location}</li>)}</ul>
         </Confirm>

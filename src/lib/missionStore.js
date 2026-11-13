@@ -98,12 +98,14 @@ export async function loadPublished(client) {
   collectPaths(qs.map((q) => q.media), paths)
   const { map } = await signPaths(client, paths)
   const content = {}
+  // Premium lessons the learner is not entitled to come back EMPTY from the database (row level security): show them locked.
   pub.forEach((m) => {
-    content[m.slug] = buildMission(m, steps.filter((s) => s.mission_id === m.id), qs.filter((q) => q.mission_id === m.id), map)
+    const mine = steps.filter((s) => s.mission_id === m.id)
+    if (mine.length) content[m.slug] = buildMission(m, mine, qs.filter((q) => q.mission_id === m.id), map)
   })
   const list = ms.map((m, i) => ({
-    id: m.slug, no: m.mission_no ?? i + 1, emoji: m.emoji, ready: m.status === 'published', title: m.title,
-    coverUrl: m.status === 'published' && m.cover_image_path ? map[m.cover_image_path] : undefined,
+    id: m.slug, no: m.mission_no ?? i + 1, emoji: m.emoji, ready: Boolean(content[m.slug]), premium: m.access === 'premium', title: m.title,
+    coverUrl: content[m.slug] && m.cover_image_path ? map[m.cover_image_path] : undefined,
   }))
   return { list, content }
 }

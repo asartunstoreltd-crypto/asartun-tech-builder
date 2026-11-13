@@ -22,14 +22,14 @@ export function Bi({ label, value, onChange, rows }) {
 
 export const StatusBadge = ({ status }) => <span className={'adm-badge s-' + status}>{stageLabel[status] || status}</span>
 
-export function Confirm({ title, children, yesText = 'Yes, delete', phrase, onYes, onNo }) {
+export function Confirm({ title, children, yesText = 'Yes, delete', danger = true, phrase, onYes, onNo }) {
   const [typed, setTyped] = useState('')
   return (
     <div className="adm-modal"><div className="adm-card">
       <h3>{title}</h3>{children}
       {phrase && <label className="adm-f"><span>Type <b>{phrase}</b> to confirm</span><input value={typed} onChange={(e) => setTyped(e.target.value)} /></label>}
       <div className="adm-actions">
-        <button className="adm-btn danger" disabled={Boolean(phrase) && typed !== phrase} onClick={onYes}>{yesText}</button>
+        <button className={'adm-btn' + (danger ? ' danger' : '')} disabled={Boolean(phrase) && typed !== phrase} onClick={onYes}>{yesText}</button>
         <button className="adm-btn ghost" onClick={onNo}>Cancel</button>
       </div>
     </div></div>

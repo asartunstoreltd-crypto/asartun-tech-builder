@@ -47,6 +47,11 @@ export default function DetailsTab({ st, setSt, meta, reloadMeta }) {
         </Field>
         <Field label="Estimated learning time (minutes)"><input type="number" min="1" max="600" value={m.estimated_minutes || ''} onChange={(e) => set({ estimated_minutes: e.target.value })} /></Field>
       </div>
+      <Field label="Who can open this mission?" hint="Premium missions open only for learners (or schools / companies) that you gave premium. The database enforces this.">
+        <select value={m.access || 'free'} onChange={(e) => set({ access: e.target.value })}>
+          <option value="free">Free for everyone</option><option value="premium">⭐ Premium</option>
+        </select>
+      </Field>
       <MediaField kind="image" label="Cover image" value={m.cover_image_path} onChange={(v) => set({ cover_image_path: v })} />
       <h4>Learning objectives</h4>
       {m.objectives.map((o, i) => (
