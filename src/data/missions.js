@@ -6,6 +6,13 @@ export const missions = [
   { id: 'solar', no: 5, emoji: '☀️', ready: true, title: { ha: 'Hasken Rana', en: 'Solar Energy' } },
   { id: 'robot', no: 6, emoji: '🤖', ready: true, title: { ha: 'Gina Ƙaramin Mutum-mutumi', en: 'Build a Simple Robot' } },
   { id: 'device', no: 7, emoji: '🔧', ready: true, title: { ha: 'Gina Na’ura don Matsalar Gida', en: 'Build a Device for a Home Problem' } },
+  { id: 'bricks', no: 8, emoji: '🧱', ready: true, title: { ha: 'Yin Bulon Gini da Interlock', en: 'Bricks and Interlock Making' } },
+  { id: 'poultry', no: 9, emoji: '🐔', ready: true, title: { ha: 'Kiwon Kaji da Kifi', en: 'Poultry and Fish Farming Basics' } },
+  { id: 'juice', no: 10, emoji: '🧃', ready: true, title: { ha: 'Sarrafa Lemun ’Ya’yan Itace', en: 'Fruit Juice and Local Drinks' } },
+  { id: 'pottery', no: 11, emoji: '🏺', ready: true, title: { ha: 'Kere-keren Yumɓu da Tukwane', en: 'Clay and Pottery Crafting' } },
+  { id: 'bicycle', no: 12, emoji: '🚲', ready: true, title: { ha: 'Kanikanci da Gyaran Keke', en: 'Simple Mechanics and Bicycle Repair' } },
+  { id: 'briquettes', no: 13, emoji: '🔥', ready: true, title: { ha: 'Yin Gawayin Girki daga Shara', en: 'Charcoal Briquettes from Waste' } },
+  { id: 'tailoring', no: 14, emoji: '🧵', ready: true, title: { ha: 'Dinki da Gyaran Tufafi', en: 'Tailoring and Basic Stitching' } },
 ]
 
 export const badges = [
@@ -19,4 +26,11 @@ export const badges = [
   { id: 'Solar Pioneer', name: { ha: 'Majagaba na Hasken Rana', en: 'Solar Pioneer' }, how: { ha: 'Ka gama Aiki na 05', en: 'Finish Mission 05' } },
   { id: 'Robot Builder', name: { ha: 'Mai Gina Mutum-mutumi', en: 'Robot Builder' }, how: { ha: 'Ka gama Aiki na 06', en: 'Finish Mission 06' } },
   { id: 'Home Inventor', name: { ha: 'Mai Ƙirƙira a Gida', en: 'Home Inventor' }, how: { ha: 'Ka gama Aiki na 07', en: 'Finish Mission 07' } },
+  { id: 'Brick Builder', name: { ha: 'Mai Gina Bulo', en: 'Brick Builder' }, how: { ha: 'Ka gama Aiki na 08', en: 'Finish Mission 08' } },
+  { id: 'Farm Starter', name: { ha: 'Mai Fara Kiwo', en: 'Farm Starter' }, how: { ha: 'Ka gama Aiki na 09', en: 'Finish Mission 09' } },
+  { id: 'Juice Maker', name: { ha: 'Mai Sarrafa Lemo', en: 'Juice Maker' }, how: { ha: 'Ka gama Aiki na 10', en: 'Finish Mission 10' } },
+  { id: 'Potter', name: { ha: 'Mai Ƙera Tukwane', en: 'Potter' }, how: { ha: 'Ka gama Aiki na 11', en: 'Finish Mission 11' } },
+  { id: 'Bike Fixer', name: { ha: 'Mai Gyaran Keke', en: 'Bike Fixer' }, how: { ha: 'Ka gama Aiki na 12', en: 'Finish Mission 12' } },
+  { id: 'Charcoal Maker', name: { ha: 'Mai Yin Gawayi', en: 'Charcoal Maker' }, how: { ha: 'Ka gama Aiki na 13', en: 'Finish Mission 13' } },
+  { id: 'Tailor', name: { ha: 'Tela', en: 'Tailor' }, how: { ha: 'Ka gama Aiki na 14', en: 'Finish Mission 14' } },
 ]

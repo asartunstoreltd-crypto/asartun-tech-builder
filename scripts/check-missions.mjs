@@ -7,8 +7,15 @@ import { compostMission } from '../src/data/compostMission.js'
 import { solarMission } from '../src/data/solarMission.js'
 import { robotMission } from '../src/data/robotMission.js'
 import { deviceMission } from '../src/data/deviceMission.js'
+import { bricksMission } from '../src/data/bricksMission.js'
+import { poultryMission } from '../src/data/poultryMission.js'
+import { juiceMission } from '../src/data/juiceMission.js'
+import { potteryMission } from '../src/data/potteryMission.js'
+import { bicycleMission } from '../src/data/bicycleMission.js'
+import { briquettesMission } from '../src/data/briquettesMission.js'
+import { tailoringMission } from '../src/data/tailoringMission.js'
 
-const all = [cassavaMission, potatoMission, wasteMission, compostMission, solarMission, robotMission, deviceMission]
+const all = [cassavaMission, potatoMission, wasteMission, compostMission, solarMission, robotMission, deviceMission, bricksMission, poultryMission, juiceMission, potteryMission, bicycleMission, briquettesMission, tailoringMission]
 const gaps = (v, p = '') => Array.isArray(v) ? v.flatMap((x, i) => gaps(x, `${p}[${i}]`))
   : v && typeof v === 'object' ? ('ha' in v || 'en' in v ? ['ha', 'en'].filter((l) => !String(v[l] ?? '').trim()).map((l) => `${p}.${l}`) : Object.entries(v).flatMap(([k, x]) => gaps(x, `${p}.${k}`))) : []
 const builtin = { sort: ['resource', 'product'], safety: ['safe', 'adult'] }

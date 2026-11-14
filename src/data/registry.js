@@ -6,4 +6,11 @@ import { compostMission } from './compostMission'
 import { solarMission } from './solarMission'
 import { robotMission } from './robotMission'
 import { deviceMission } from './deviceMission'
-export const content = { cassava: cassavaMission, potato: potatoMission, waste: wasteMission, compost: compostMission, solar: solarMission, robot: robotMission, device: deviceMission }
+import { bricksMission } from './bricksMission'
+import { poultryMission } from './poultryMission'
+import { juiceMission } from './juiceMission'
+import { potteryMission } from './potteryMission'
+import { bicycleMission } from './bicycleMission'
+import { briquettesMission } from './briquettesMission'
+import { tailoringMission } from './tailoringMission'
+export const content = { cassava: cassavaMission, potato: potatoMission, waste: wasteMission, compost: compostMission, solar: solarMission, robot: robotMission, device: deviceMission, bricks: bricksMission, poultry: poultryMission, juice: juiceMission, pottery: potteryMission, bicycle: bicycleMission, briquettes: briquettesMission, tailoring: tailoringMission }
