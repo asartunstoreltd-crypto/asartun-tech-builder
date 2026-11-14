@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabaseAdmin } from '../lib/supabase.js'
+import { useAdminAuth } from './AdminAuth.jsx'
 
 const Card = ({ icon, label, value }) => (
   <div className="adm-stat"><span className="adm-ico">{icon}</span><b>{value ?? '–'}</b><span>{label}</span></div>
@@ -9,6 +11,7 @@ const Card = ({ icon, label, value }) => (
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
   const [err, setErr] = useState('')
+  const { hasRole } = useAdminAuth()
 
   useEffect(() => {
     supabaseAdmin.rpc('admin_dashboard_stats').then(({ data, error }) => {
@@ -27,6 +30,16 @@ export default function AdminDashboard() {
   return (
     <>
       <h2>Dashboard</h2>
+      {hasRole('super_admin') && (
+        <div className="adm-card">
+          <h3>Schools &amp; companies</h3>
+          <p className="adm-note">Give a school or company its own page: create the organization, then create its staff accounts.</p>
+          <div className="adm-actions">
+            <Link className="adm-btn" to="/admin/staff">+ Create staff account</Link>
+            <Link className="adm-btn ghost" to="/admin/organizations">Schools &amp; companies</Link>
+          </div>
+        </div>
+      )}
       <div className="adm-grid">
         <Card icon="👧🏾" label="Registered learners" value={stats.total_learners} />
         <Card icon="🔥" label="Active (last 7 days)" value={stats.active_learners} />

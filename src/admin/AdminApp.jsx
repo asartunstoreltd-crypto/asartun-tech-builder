@@ -10,6 +10,7 @@ import MediaLibrary from './MediaLibrary.jsx'
 import ActivityLog from './ActivityLog.jsx'
 import Learners from './Learners.jsx'
 import Premium from './Premium.jsx'
+import StaffAccounts from './StaffAccounts.jsx'
 import { OrganizationList, OrganizationDetail } from './Organizations.jsx'
 import './admin.css'
 
@@ -35,6 +36,7 @@ export default function AdminApp() {
             <Route element={<RequireAdmin roles={['super_admin']} />}>
               <Route path="organizations" element={<OrganizationList />} />
               <Route path="organizations/:id" element={<OrganizationDetail />} />
+              <Route path="staff" element={<StaffAccounts />} />
               <Route path="premium" element={<Premium />} />
               <Route path="activity" element={<ActivityLog />} />
             </Route>

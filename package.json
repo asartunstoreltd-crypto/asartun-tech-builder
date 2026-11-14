@@ -1,9 +1,15 @@
 {
   "name": "asartun-tech-builder",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.6.0",
   "type": "module",
-  "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview", "seed:generate": "node scripts/generate-seed.mjs" },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "seed:generate": "node scripts/generate-seed.mjs",
+    "check:missions": "node scripts/check-missions.mjs"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
     "lucide-react": "^0.400.0",
@@ -11,5 +17,8 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0"
   },
-  "devDependencies": { "@vitejs/plugin-react": "^4.3.1", "vite": "^5.4.0" }
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.0"
+  }
 }

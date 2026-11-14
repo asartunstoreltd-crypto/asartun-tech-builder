@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { AdminAuthProvider, useAdminAuth } from '../admin/AdminAuth.jsx'
 import { OrgClasses, OrgInsights, OrgLearners } from '../admin/orgparts.jsx'
 import { staffOrgs } from '../admin/api2.js'
-import { isSupabaseConfigured } from '../lib/supabase.js'
+import { isSupabaseConfigured, supabaseAdmin } from '../lib/supabase.js'
 import '../admin/admin.css'
 
 // Portal for a school or company (/org). Staff see ONLY their own learners; the database enforces it.
@@ -37,12 +37,38 @@ function OrgLogin() {
   )
 }
 
+function ChangePassword({ onClose }) {
+  const [a, setA] = useState('')
+  const [b, setB] = useState('')
+  const [msg, setMsg] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const submit = async (e) => {
+    e.preventDefault()
+    if (a.length < 10) return setMsg({ err: 'Use at least 10 characters.' })
+    if (a !== b) return setMsg({ err: 'The two passwords are not the same.' })
+    setBusy(true)
+    const { error } = await supabaseAdmin.auth.updateUser({ password: a })
+    setBusy(false)
+    setMsg(error ? { err: 'Could not change the password. Sign in again and retry.' } : { ok: 'Password changed.' })
+  }
+  return (
+    <div className="adm-modal"><form className="adm-card" onSubmit={submit}>
+      <h3>Change password</h3>
+      <label className="adm-f"><span>New password (10+ characters)</span><input type="password" autoComplete="new-password" value={a} onChange={(e) => setA(e.target.value)} /></label>
+      <label className="adm-f"><span>Repeat it</span><input type="password" autoComplete="new-password" value={b} onChange={(e) => setB(e.target.value)} /></label>
+      {msg && <p className={msg.err ? 'adm-err' : 'adm-good'}>{msg.err || msg.ok}</p>}
+      <div className="adm-actions"><button className="adm-btn" disabled={busy}>Save</button><button type="button" className="adm-btn ghost" onClick={onClose}>Close</button></div>
+    </form></div>
+  )
+}
+
 function OrgHome() {
   const { session, status, signOut } = useAdminAuth()
   const [orgs, setOrgs] = useState(null)
   const [sel, setSel] = useState('')
   const [tab, setTab] = useState('learners')
   const [err, setErr] = useState('')
+  const [pwOpen, setPwOpen] = useState(false)
   useEffect(() => {
     if (!session) return
     staffOrgs().then((r) => { setOrgs(r); if (r.length) setSel(r[0].id) }).catch((e) => setErr(e.message))
@@ -54,7 +80,7 @@ function OrgHome() {
     <div className="adm">
       <header className="adm-top">
         <div><b>🏫 ASARTUN TECH BUILDER</b> <span className="adm-sub">School &amp; Company Portal</span></div>
-        <div className="adm-user"><span className="adm-mail">{session.user.email}</span><button className="adm-btn ghost" onClick={signOut}>Sign out</button></div>
+        <div className="adm-user"><span className="adm-mail">{session.user.email}</span><button className="adm-btn ghost" onClick={() => setPwOpen(true)}>Change password</button><button className="adm-btn ghost" onClick={signOut}>Sign out</button></div>
       </header>
       <main className="adm-main">
         {err && <p className="adm-err">{err}</p>}
@@ -75,6 +101,7 @@ function OrgHome() {
           </>
         )}
       </main>
+      {pwOpen && <ChangePassword onClose={() => setPwOpen(false)} />}
       <footer className="adm-foot">a product of ASARTUN STORE LIMITED</footer>
     </div>
   )

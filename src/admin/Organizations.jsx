@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Confirm, Field } from './ui.jsx'
 import { OrgClasses, OrgInsights, OrgLearners } from './orgparts.jsx'
-import { addStaff, createOrg, deleteOrg, entitlements, getOrg, grantPremium, listOrgs, orgStaff, regenCode, removeStaff, revokePremium, updateOrg } from './api2.js'
+import { createOrg, deleteOrg, entitlements, getOrg, grantPremium, listOrgs, regenCode, revokePremium, updateOrg } from './api2.js'
+import { StaffForm, StaffList } from './StaffAccounts.jsx'
 
 const TYPES = [['school', 'School'], ['company', 'Company'], ['ngo', 'NGO'], ['other', 'Other']]
 
@@ -49,17 +50,15 @@ export function OrganizationDetail() {
   const nav = useNavigate()
   const [o, setO] = useState(null)
   const [tab, setTab] = useState('learners')
-  const [staff, setStaff] = useState([])
+  const [sk, setSk] = useState(0)
   const [ents, setEnts] = useState([])
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState('teacher')
   const [days, setDays] = useState(365)
   const [msg, setMsg] = useState(null)
   const [del, setDel] = useState(false)
   const load = useCallback(async () => {
     try {
-      const [org, st, en] = await Promise.all([getOrg(id), orgStaff(id), entitlements()])
-      setO(org); setStaff(st); setEnts(en.filter((e) => e.org_id === id))
+      const [org, en] = await Promise.all([getOrg(id), entitlements()])
+      setO(org); setEnts(en.filter((e) => e.org_id === id))
     } catch (e) { setMsg({ err: e.message }) }
   }, [id])
   useEffect(() => { load() }, [load])
@@ -79,13 +78,10 @@ export function OrganizationDetail() {
       {tab === 'report' && <OrgInsights orgId={id} />}
       {tab === 'classes' && <OrgClasses orgId={id} canEdit />}
       {tab === 'staff' && (
-        <div className="adm-card">
-          <p className="adm-note">Staff see ONLY this organization’s learners. First create the person in Supabase → Authentication → Users (email + password), then add the email here. They sign in at <code>/org/login</code>.</p>
-          {staff.map((s) => <p key={s.id}>{s.email} — {s.role} <button className="adm-btn ghost" onClick={go(() => removeStaff(s.id))}>Remove</button></p>)}
-          <div className="adm-two"><Field label="Staff email"><input value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-            <Field label="Role"><select value={role} onChange={(e) => setRole(e.target.value)}><option value="teacher">Teacher (view)</option><option value="org_admin">Organization admin (view + classes + code)</option></select></Field></div>
-          <button className="adm-btn" disabled={!email.includes('@')} onClick={go(async () => { await addStaff(id, email, role); setEmail('') }, 'Staff added.')}>Add staff</button>
-        </div>
+        <>
+          <StaffForm orgs={[o]} orgId={id} onDone={() => setSk(sk + 1)} />
+          <StaffList key={sk} orgId={id} />
+        </>
       )}
       {tab === 'premium' && (
         <div className="adm-card">

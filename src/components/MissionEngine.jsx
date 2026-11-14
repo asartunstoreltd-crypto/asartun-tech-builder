@@ -103,7 +103,7 @@ export default function MissionEngine({ mission, state, award, onExit, track }) 
         <div>
           <Guide say={t('gChallenge')} audioId="ui.gChallenge" />
           {chal.instructions && <p className="help">{L(chal.instructions)}</p>}
-          {challengeTypes[chal.type](chal, () => aw('challenge-' + chal.key, rw[chal.key]))}
+          <div key={chal.key}>{challengeTypes[chal.type](chal, () => aw('challenge-' + chal.key, rw[chal.key]))}</div>
           {chalDone && <button className="btn" onClick={() => (ch < mission.challenges.length - 1 ? setCh(ch + 1) : next())}>{t('continue')}</button>}
         </div>
       )}
