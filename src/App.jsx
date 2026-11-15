@@ -10,13 +10,14 @@ import Rewards from './pages/Rewards'
 import Parent from './pages/Parent'
 import Settings from './pages/Settings'
 import ScriptPage from './pages/ScriptPage'
+import Unlock from './pages/Unlock'
 
 const empty = { nick: '', points: 0, badges: [], earned: [] }
 const load = () => { try { return { ...empty, ...JSON.parse(localStorage.getItem('atb') || '{}') } } catch { return empty } }
 
 export default function App() {
   const { t, L } = useLang()
-  const { list: missions, content, loading, refresh } = useMissions()
+  const { list: missions, content, loading, refresh, offline } = useMissions()
   const [s, setS] = useState(load)
   const [view, setView] = useState(s.nick ? 'dashboard' : 'welcome')
   const [name, setName] = useState('')
@@ -78,6 +79,7 @@ export default function App() {
       }}>{t('start')}</button>
     </div>
   )
+  else if (view === 'unlock') body = <Unlock onBack={() => setView('dashboard')} onUnlocked={() => { refresh(); setNotice(t('premiumNow')); setView('dashboard') }} />
   else if (content[view]) body = <MissionEngine mission={content[view]} state={s} award={award} track={logWrong} onExit={() => setView('dashboard')} />
   else body = (
     <>
@@ -92,10 +94,12 @@ export default function App() {
           </header>
           <h3>{t('missions')}</h3>
           {loading && <p className="small">⏳</p>}
+          {offline && missions.length === 0 && <p className="warn">{t('needInternet')}</p>}
           {notice && <p className="warn" onClick={() => setNotice('')}>{notice}</p>}
+          {missions.some((m) => m.premium && !m.ready) && <button className="btn alt" onClick={() => setView('unlock')}>{t('lockBanner')}</button>}
           <div className="grid">
             {missions.map((m) => (
-              <button key={m.id} className={'card mission' + (m.ready ? '' : ' locked')} disabled={!m.ready} onClick={() => setView(m.id)}>
+              <button key={m.id} className={'card mission' + (m.ready ? '' : m.premium ? ' premium' : ' locked')} disabled={!m.ready && !m.premium} onClick={() => setView(m.ready ? m.id : 'unlock')}>
                 {m.coverUrl && m.ready ? <img className="cover" src={m.coverUrl} alt="" /> : <span className="big">{m.ready ? m.emoji : '🔒'}</span>}
                 <b>{t('mission')} {String(m.no).padStart(2, '0')}</b><span>{L(m.title)}</span>
                 {!m.ready && <span className="small">{m.premium ? t('premiumLock') : t('soon')}</span>}

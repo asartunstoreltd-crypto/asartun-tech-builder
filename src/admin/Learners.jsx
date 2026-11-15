@@ -52,6 +52,7 @@ export default function Learners() {
           <Stat icon="🆕" label="New today" value={live.new_today} />
           <Stat icon="👧🏾" label="All learners" value={live.total} />
           <Stat icon="⭐" label="Premium learners" value={live.premium_learners} />
+          {live.pending_payments !== undefined && <Stat icon="💳" label="Payments waiting" value={live.pending_payments} />}
         </div>
       )}
       {err && <p className="adm-err">{err}</p>}

@@ -88,3 +88,8 @@ body{font-size:19px;line-height:1.45}
 /* CMS media in lessons */
 .mimg{max-width:100%;max-height:260px;border-radius:12px;margin:8px auto;display:block}
 .cover{width:100%;height:90px;object-fit:cover;border-radius:12px}
+/* Premium lock */
+.card.mission.premium{cursor:pointer;opacity:.9;border:3px dashed #e67e00}
+.payacc{background:#fff3cd;border-radius:10px;padding:10px;white-space:pre-wrap;font-weight:700}
+a.btn{display:inline-block;text-decoration:none}
+label.opt{display:flex;gap:8px;align-items:center;cursor:pointer}

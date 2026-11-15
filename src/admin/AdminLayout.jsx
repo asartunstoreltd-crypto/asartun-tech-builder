@@ -22,7 +22,7 @@ export default function AdminLayout() {
         {hasRole('learning_analyst') && <NavLink to="/admin/learners">Learners</NavLink>}
         {hasRole('super_admin') && <NavLink to="/admin/organizations">Schools &amp; companies</NavLink>}
         {hasRole('super_admin') && <NavLink to="/admin/staff">Staff accounts</NavLink>}
-        {hasRole('super_admin') && <NavLink to="/admin/premium">Premium</NavLink>}
+        {hasRole('super_admin') && <NavLink to="/admin/premium">Premium &amp; payments</NavLink>}
         {hasRole('super_admin') && <NavLink to="/admin/activity">Activity log</NavLink>}
       </nav>
       <main className="adm-main"><Outlet /></main>

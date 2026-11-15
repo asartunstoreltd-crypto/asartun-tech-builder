@@ -50,3 +50,21 @@ export const ago = (t) => {
   if (m < 1440) return Math.round(m / 60) + ' h ago'
   return Math.round(m / 1440) + ' days ago'
 }
+
+// ---- app lock, plans, manual payments, activation codes ----
+export const listAccess = async () => must(await db.from('missions').select('slug,title,status,access,mission_no').order('mission_no', { ascending: true, nullsFirst: false }))
+export const setAccess = (free) => call('admin_set_access', { p_free: free })
+export const listPlans = async () => must(await db.from('premium_plans').select('*').order('position'))
+export const savePlan = async (p) => {
+  const row = { name: p.name, days: Number(p.days), price_ngn: Number(p.price_ngn) || 0, active: Boolean(p.active), position: Number(p.position) || 0 }
+  return p.id ? must(await db.from('premium_plans').update(row).eq('id', p.id)) : must(await db.from('premium_plans').insert(row))
+}
+export const deletePlan = async (id) => must(await db.from('premium_plans').delete().eq('id', id))
+export const getPayInfo = async () => must(await db.from('payment_settings').select('*').eq('id', 1).single())
+export const savePayInfo = async (i) => must(await db.from('payment_settings').update({ instructions: i.instructions, account_details: i.account_details, whatsapp: i.whatsapp }).eq('id', 1))
+export const paymentRequests = (status) => call('admin_payment_requests', { p_status: status || null })
+export const decidePayment = (id, approve, note) => call('admin_decide_payment', { p_id: id, p_approve: approve, p_note: note || null })
+export const createCodes = (days, count, note) => call('admin_create_codes', { p_days: days, p_count: count, p_note: note || null })
+export const listCodes = () => call('admin_list_codes')
+export const revokeCode = (id) => call('admin_revoke_code', { p_id: id })
+export const groupCode = (c) => (c && c.length === 10 ? c.slice(0, 5) + '-' + c.slice(5) : c)

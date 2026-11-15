@@ -71,3 +71,32 @@ Object.assign(uiMission.en, {
   deleteOnline: 'Delete my online record', deleteConfirm: 'Delete all your data, including online?',
   ageBands: { '': '—', '5-7': '5–7', '8-10': '8–10', '11-13': '11–13', '14-17': '14–17' },
 })
+
+// Premium unlock screen
+Object.assign(uiMission.ha, {
+  unlockTitle: '⭐ Buɗe Premium', unlockIntro: 'Wasu darussa na premium ne. Iyaye ko babba ne ke biya, ba yaro ba.',
+  activeUntil: 'Premium yana aiki har zuwa {date}.', activeNoEnd: 'Premium yana aiki.', premiumNow: 'An buɗe premium! 🎉',
+  choosePlan: 'Zaɓi tsari', planDays: 'kwana {n}', payHow: 'Yadda ake biya', whatsappBtn: '💬 Tuntuɓi ta WhatsApp',
+  noPlans: 'Ba a saka tsarin biyan kuɗi ba tukuna. Ka tuntuɓi mai kula da app.', iPaid: 'Na biya',
+  refLabel: 'Lambar biyan kuɗi ko bayani (misali sunan wanda ya tura kuɗi)', contactLabel: 'Sunan ko lambar waya ta iyaye (ba dole ba)',
+  sendPaid: 'Aika', sentOk: 'An aika! Za a duba, a buɗe maka da zarar an tabbatar. ✅', sendBad: 'Ba a iya aikawa. Ka duba ka sake gwadawa.',
+  yourRequests: 'Buƙatunka', st_pending: 'Ana jira ⏳', st_approved: 'An amince ✅', st_rejected: 'An ƙi ❌',
+  haveCode: 'Kana da lambar buɗewa?', codeLabel: 'Lambar buɗewa', redeemBtn: 'Buɗe', codeOk: 'An buɗe premium! 🎉',
+  codeBad: 'Lambar ba ta aiki, ko an riga an yi amfani da ita.', lockBanner: '⭐ Wasu darussa na premium ne. Danna don buɗewa.',
+  neverCard: 'Kada ka rubuta lambar katin banki, PIN ko kalmar sirri a nan. Ka tambayi iyayenka.',
+})
+Object.assign(uiMission.en, {
+  unlockTitle: '⭐ Unlock Premium', unlockIntro: 'Some lessons are premium. A parent or adult pays, not the child.',
+  activeUntil: 'Premium is active until {date}.', activeNoEnd: 'Premium is active.', premiumNow: 'Premium unlocked! 🎉',
+  choosePlan: 'Choose a plan', planDays: '{n} days', payHow: 'How to pay', whatsappBtn: '💬 Contact on WhatsApp',
+  noPlans: 'No payment plan has been set up yet. Please contact the app owner.', iPaid: 'I have paid',
+  refLabel: 'Payment reference or note (for example the name of the sender)', contactLabel: 'Parent name or phone (optional)',
+  sendPaid: 'Send', sentOk: 'Sent! We will check it and unlock for you as soon as it is confirmed. ✅', sendBad: 'Could not send. Check and try again.',
+  yourRequests: 'Your requests', st_pending: 'Waiting ⏳', st_approved: 'Approved ✅', st_rejected: 'Not approved ❌',
+  haveCode: 'Have an activation code?', codeLabel: 'Activation code', redeemBtn: 'Unlock', codeOk: 'Premium unlocked! 🎉',
+  codeBad: 'The code does not work, or it was already used.', lockBanner: '⭐ Some lessons are premium. Tap to unlock.',
+  neverCard: 'Never type a bank card number, PIN or password here. Ask your parent.',
+})
+
+Object.assign(uiMission.ha, { needInternet: 'Ana buƙatar intanet don saukar da darussa a karon farko. Ka haɗa intanet ka sake buɗe app ɗin.' })
+Object.assign(uiMission.en, { needInternet: 'Internet is needed the first time to download the lessons. Connect and open the app again.' })

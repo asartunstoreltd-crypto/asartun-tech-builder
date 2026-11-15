@@ -72,3 +72,19 @@ export const myMemberships = () => rpc('my_memberships')
 export const leaveOrg = (id) => rpc('leave_organization', { p_org: id })
 export const deleteMyData = () => rpc('delete_my_data')
 export async function signOutLearner() { try { await supabase.auth.signOut() } catch { /* ignore */ } sessionPromise = null }
+
+// ---- Premium: manual payment ("I have paid") and activation codes ----
+export async function getPlans() {
+  const { data, error } = await supabase.from('premium_plans').select('id,name,days,price_ngn').eq('active', true).order('position')
+  if (error) throw error
+  return data || []
+}
+export async function getPaymentInfo() {
+  const { data, error } = await supabase.from('payment_settings').select('instructions,account_details,whatsapp').eq('id', 1).maybeSingle()
+  if (error) throw error
+  return data
+}
+export const submitPayment = (plan, reference, contact) => rpc('submit_payment_request', { p_plan: plan, p_reference: reference, p_contact: contact || null })
+export const myPayments = () => rpc('my_payment_requests')
+export const redeemCode = (code) => rpc('redeem_code', { p_code: code })
+export const myPremium = () => rpc('my_premium')
