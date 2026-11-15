@@ -93,3 +93,7 @@ body{font-size:19px;line-height:1.45}
 .payacc{background:#fff3cd;border-radius:10px;padding:10px;white-space:pre-wrap;font-weight:700}
 a.btn{display:inline-block;text-decoration:none}
 label.opt{display:flex;gap:8px;align-items:center;cursor:pointer}
+
+/* Levels */
+.level{margin:18px 0 4px;color:#0b5ed7}
+.rk{font-size:.75rem;color:#8a5a00;font-weight:700}

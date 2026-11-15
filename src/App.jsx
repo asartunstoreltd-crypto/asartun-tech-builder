@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useLang } from './lib/i18n.jsx'
 import MissionEngine from './components/MissionEngine'
 import { useMissions } from './lib/useMissions.js'
-import { flush, heartbeat, joinWithCode, logWrong, sendEvent, startProfile, syncAll } from './lib/learnerSync.js'
+import { flush, heartbeat, joinWithCode, logWrong, myAge, sendEvent, startProfile, syncAll } from './lib/learnerSync.js'
 import { isSupabaseConfigured } from './lib/supabase.js'
+import { ageBlocked } from './lib/age.js'
 import NavBar from './components/NavBar'
 import LangSwitcher from './components/LangSwitcher'
 import Rewards from './pages/Rewards'
@@ -14,6 +15,18 @@ import Unlock from './pages/Unlock'
 
 const empty = { nick: '', points: 0, badges: [], earned: [] }
 const load = () => { try { return { ...empty, ...JSON.parse(localStorage.getItem('atb') || '{}') } } catch { return empty } }
+
+// Lessons grouped by level (age group). Without levels (demo mode) there is one group and no heading.
+const levelGroups = (list) => {
+  const groups = []
+  list.forEach((m) => {
+    const key = m.levelId || 'none'
+    let g = groups.find((x) => x.key === key)
+    if (!g) { g = { key, name: m.levelName, min: m.minAge, max: m.maxAge, items: [] }; groups.push(g) }
+    g.items.push(m)
+  })
+  return groups
+}
 
 export default function App() {
   const { t, L } = useLang()
@@ -31,6 +44,8 @@ export default function App() {
     if (!isSupabaseConfigured || !s.nick) return
     startProfile(s.nick, s.age).then((ok) => {
       if (!ok) return
+      myAge().then((b) => { if (b) setS((p) => (p.age === b ? p : { ...p, age: b })) }).catch(() => {})   // the database is the source of truth for the age
+      refresh()                                                                                          // lessons depend on the age: load them again
       let done = false
       try { done = localStorage.getItem('atb-synced') === '1' } catch { /* ignore */ }
       if (!done) { syncAll(s.earned); try { localStorage.setItem('atb-synced', '1') } catch { /* ignore */ } } else flush()
@@ -67,7 +82,7 @@ export default function App() {
         <input className="input" maxLength={12} placeholder={t('orgCodeLabel')} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
         <p className="small">{t('orgCodeHelp')}</p>
       </>}
-      <button className="btn" disabled={!name.trim()} onClick={() => {
+      <button className="btn" disabled={!name.trim() || (isSupabaseConfigured && !age)} onClick={() => {
         setS({ ...s, nick: name.trim(), age })
         setView('dashboard')
         if (isSupabaseConfigured && code.trim()) {
@@ -96,16 +111,27 @@ export default function App() {
           {loading && <p className="small">⏳</p>}
           {offline && missions.length === 0 && <p className="warn">{t('needInternet')}</p>}
           {notice && <p className="warn" onClick={() => setNotice('')}>{notice}</p>}
-          {missions.some((m) => m.premium && !m.ready) && <button className="btn alt" onClick={() => setView('unlock')}>{t('lockBanner')}</button>}
-          <div className="grid">
-            {missions.map((m) => (
-              <button key={m.id} className={'card mission' + (m.ready ? '' : m.premium ? ' premium' : ' locked')} disabled={!m.ready && !m.premium} onClick={() => setView(m.ready ? m.id : 'unlock')}>
-                {m.coverUrl && m.ready ? <img className="cover" src={m.coverUrl} alt="" /> : <span className="big">{m.ready ? m.emoji : '🔒'}</span>}
-                <b>{t('mission')} {String(m.no).padStart(2, '0')}</b><span>{L(m.title)}</span>
-                {!m.ready && <span className="small">{m.premium ? t('premiumLock') : t('soon')}</span>}
-              </button>
-            ))}
-          </div>
+          {missions.some((m) => m.premium && !m.ready && !ageBlocked(m.minAge, m.risk, s.age)) && <button className="btn alt" onClick={() => setView('unlock')}>{t('lockBanner')}</button>}
+          {levelGroups(missions).map((g) => (
+            <div key={g.key}>
+              {g.name && <h4 className="level">{L(g.name)} · {t('ages', { a: g.min, b: g.max })}</h4>}
+              <div className="grid">
+                {g.items.map((m) => {
+                  const aged = ageBlocked(m.minAge, m.risk, s.age)
+                  return (
+                    <button key={m.id} className={'card mission' + (m.ready ? '' : aged ? ' locked' : m.premium ? ' premium' : ' locked')}
+                      disabled={!m.ready && !m.premium && !aged}
+                      onClick={() => (m.ready ? setView(m.id) : aged ? setNotice(t('ageLocked', { n: m.minAge })) : setView('unlock'))}>
+                      {m.coverUrl && m.ready ? <img className="cover" src={m.coverUrl} alt="" /> : <span className="big">{m.ready ? m.emoji : '🔒'}</span>}
+                      <b>{t('mission')} {String(m.no).padStart(2, '0')}</b><span>{L(m.title)}</span>
+                      {!m.ready && <span className="small">{aged ? t('ageLockedShort', { n: m.minAge }) : m.premium ? t('premiumLock') : t('soon')}</span>}
+                      {m.risk && m.risk !== 'low' && <span className="rk">{t('withAdult')}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
       <NavBar view={view} setView={setView} />

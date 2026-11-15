@@ -52,6 +52,21 @@ export default function DetailsTab({ st, setSt, meta, reloadMeta }) {
           <option value="free">Free for everyone</option><option value="premium">⭐ Premium</option>
         </select>
       </Field>
+      <div className="adm-two">
+        <Field label="Level (age group)" hint="Children younger than the level cannot open the lesson. The database enforces it.">
+          <select value={m.level_id || ''} onChange={(e) => set({ level_id: e.target.value || null })}>
+            <option value="">(no level: open to all ages)</option>
+            {(meta.levels || []).map((l) => <option key={l.id} value={l.id}>{(l.name && (l.name.en || l.name.ha)) || l.slug} (ages {l.min_age}–{l.max_age})</option>)}
+          </select>
+        </Field>
+        <Field label="Risk level" hint="How dangerous is the REAL activity the lesson talks about? High needs a known age.">
+          <select value={m.risk_level || 'low'} onChange={(e) => set({ risk_level: e.target.value })}>
+            <option value="low">Low: nothing dangerous</option>
+            <option value="medium">Medium: real steps need an adult (heat, sharp tools, electricity)</option>
+            <option value="high">High: serious hazards (fire, smoke, chemicals)</option>
+          </select>
+        </Field>
+      </div>
       <MediaField kind="image" label="Cover image" value={m.cover_image_path} onChange={(v) => set({ cover_image_path: v })} />
       <h4>Learning objectives</h4>
       {m.objectives.map((o, i) => (

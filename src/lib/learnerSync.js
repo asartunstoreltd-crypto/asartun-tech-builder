@@ -88,3 +88,7 @@ export const submitPayment = (plan, reference, contact) => rpc('submit_payment_r
 export const myPayments = () => rpc('my_payment_requests')
 export const redeemCode = (code) => rpc('redeem_code', { p_code: code })
 export const myPremium = () => rpc('my_premium')
+
+// ---- age (self-reported; inside a school or company only the organization can change it) ----
+export const myAge = () => rpc('my_age_band')
+export const setMyAge = (band) => rpc('set_my_age_band', { p_band: band })

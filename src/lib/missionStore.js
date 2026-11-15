@@ -80,6 +80,8 @@ export async function loadPublished(client) {
   const { data: ms, error } = await client.from('missions').select('*').in('status', ['published', 'coming_soon'])
     .order('mission_no', { ascending: true, nullsFirst: false })
   if (error) throw error
+  const { data: lv } = await client.from('lesson_levels').select('id,name,min_age,max_age,position')   // missing before migration 011: ignored
+  const levels = Object.fromEntries((lv || []).map((l) => [l.id, l]))
   const pub = ms.filter((m) => m.status === 'published')
   let steps = []
   let qs = []
@@ -106,6 +108,9 @@ export async function loadPublished(client) {
   const list = ms.map((m, i) => ({
     id: m.slug, no: m.mission_no ?? i + 1, emoji: m.emoji, ready: Boolean(content[m.slug]), premium: m.access === 'premium', title: m.title,
     coverUrl: content[m.slug] && m.cover_image_path ? map[m.cover_image_path] : undefined,
+    levelId: m.level_id || null, levelName: levels[m.level_id] && levels[m.level_id].name, minAge: levels[m.level_id] && levels[m.level_id].min_age,
+    maxAge: levels[m.level_id] && levels[m.level_id].max_age, levelPos: levels[m.level_id] ? levels[m.level_id].position : 99, risk: m.risk_level || 'low',
   }))
+  list.sort((a, b) => a.levelPos - b.levelPos || a.no - b.no)
   return { list, content }
 }

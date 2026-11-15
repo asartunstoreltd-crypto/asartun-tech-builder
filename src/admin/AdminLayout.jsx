@@ -18,6 +18,7 @@ export default function AdminLayout() {
       <nav className="adm-nav">
         <NavLink to="/admin/dashboard">Dashboard</NavLink>
         {hasRole('content_manager') && <NavLink to="/admin/missions">Missions</NavLink>}
+        {hasRole('content_manager') && <NavLink to="/admin/levels">Levels &amp; safety</NavLink>}
         {hasRole('content_manager', 'media_manager') && <NavLink to="/admin/media">Media Library</NavLink>}
         {hasRole('learning_analyst') && <NavLink to="/admin/learners">Learners</NavLink>}
         {hasRole('super_admin') && <NavLink to="/admin/organizations">Schools &amp; companies</NavLink>}

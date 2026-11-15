@@ -9,6 +9,7 @@ import MissionEditor from './MissionEditor.jsx'
 import MediaLibrary from './MediaLibrary.jsx'
 import ActivityLog from './ActivityLog.jsx'
 import Learners from './Learners.jsx'
+import Levels from './Levels.jsx'
 import Premium from './Premium.jsx'
 import StaffAccounts from './StaffAccounts.jsx'
 import { OrganizationList, OrganizationDetail } from './Organizations.jsx'
@@ -26,6 +27,7 @@ export default function AdminApp() {
             <Route element={<RequireAdmin roles={['content_manager']} />}>
               <Route path="missions" element={<MissionList />} />
               <Route path="missions/:id" element={<MissionEditor />} />
+              <Route path="levels" element={<Levels />} />
             </Route>
             <Route element={<RequireAdmin roles={['content_manager', 'media_manager']} />}>
               <Route path="media" element={<MediaLibrary />} />

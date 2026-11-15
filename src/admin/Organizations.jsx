@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Confirm, Field } from './ui.jsx'
-import { OrgClasses, OrgInsights, OrgLearners } from './orgparts.jsx'
+import { OrgClasses, OrgInsights, OrgLearners, OrgLessons } from './orgparts.jsx'
 import { createOrg, deleteOrg, entitlements, getOrg, grantPremium, listOrgs, regenCode, revokePremium, updateOrg } from './api2.js'
 import { StaffForm, StaffList } from './StaffAccounts.jsx'
 
@@ -72,11 +72,12 @@ export function OrganizationDetail() {
       <Link to="/admin/organizations">← All organizations</Link>
       <h2>{o.name}</h2>
       {msg && <p className={msg.err ? 'adm-err' : 'adm-good'}>{msg.err || msg.ok}</p>}
-      <div className="adm-tabs">{[['learners', 'Learners'], ['report', 'Where they struggle'], ['classes', 'Classes'], ['staff', 'Staff'], ['premium', 'Premium'], ['settings', 'Settings']]
+      <div className="adm-tabs">{[['learners', 'Learners'], ['report', 'Where they struggle'], ['classes', 'Classes'], ['lessons', 'Lessons'], ['staff', 'Staff'], ['premium', 'Premium'], ['settings', 'Settings']]
         .map(([k, n]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{n}</button>)}</div>
       {tab === 'learners' && <OrgLearners orgId={id} orgName={o.name} />}
       {tab === 'report' && <OrgInsights orgId={id} />}
       {tab === 'classes' && <OrgClasses orgId={id} canEdit />}
+      {tab === 'lessons' && <OrgLessons orgId={id} canEdit />}
       {tab === 'staff' && (
         <>
           <StaffForm orgs={[o]} orgId={id} onDone={() => setSk(sk + 1)} />

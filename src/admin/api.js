@@ -134,7 +134,7 @@ export function missionPatch(st) {
   st.chals.forEach((c) => { if (rules[c.key] === undefined) rules[c.key] = c.content.type === 'business' ? 15 : 5 })
   const stages = defaultStages.filter((s) => s === 'quiz' || s === 'reward' || m.stages.includes(s))
   return {
-    emoji: m.emoji || '🛠️', access: m.access || 'free', title: m.title, description: emptyLang(m.description) ? {} : m.description,
+    emoji: m.emoji || '🛠️', access: m.access || 'free', level_id: m.level_id || null, risk_level: m.risk_level || 'low', title: m.title, description: emptyLang(m.description) ? {} : m.description,
     category_id: m.category_id || null, age_min: Number(m.age_min) || 6, age_max: Number(m.age_max) || 12, difficulty: m.difficulty || 'beginner',
     cover_image_path: m.cover_image_path || null, estimated_minutes: m.estimated_minutes ? Number(m.estimated_minutes) : null,
     objectives: m.objectives, stages, reward_rules: rules, engine_options: st.eo,
@@ -176,8 +176,9 @@ export async function loadFull(id) {
     db.from('mission_last_edit').select('*').eq('mission_id', id).maybeSingle(),
     db.rpc('admin_names')])
   ;[m, s, q, c, r, a].forEach((x) => fail(x.error))
+  const lv = await db.from('lesson_levels').select('*').order('position')   // missing before migration 011: ignored
   return { st: fromRows(m.data, s.data, q.data),
-    meta: { categories: c.data, rewards: r.data, assets: a.data, lastEdit: le.data, names: Object.fromEntries((nm.data || []).map((x) => [x.user_id, x.email])) } }
+    meta: { levels: lv.data || [], categories: c.data, rewards: r.data, assets: a.data, lastEdit: le.data, names: Object.fromEntries((nm.data || []).map((x) => [x.user_id, x.email])) } }
 }
 export async function loadCategories() { const r = await db.from('categories').select('*').order('position'); fail(r.error); return r.data }
 export async function loadAssets() { const r = await db.from('media_assets').select('*').order('created_at', { ascending: false }); fail(r.error); return r.data }

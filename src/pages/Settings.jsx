@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLang } from '../lib/i18n.jsx'
-import { deleteMyData, joinWithCode, leaveOrg, myMemberships, signOutLearner } from '../lib/learnerSync.js'
+import { deleteMyData, joinWithCode, leaveOrg, myMemberships, setMyAge, signOutLearner } from '../lib/learnerSync.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
 
 export default function Settings({ state, setState, onReset, onJoined }) {
@@ -10,6 +10,7 @@ export default function Settings({ state, setState, onReset, onJoined }) {
   const [orgs, setOrgs] = useState([])
   const [code, setCode] = useState('')
   const [msg, setMsg] = useState(null)
+  const [ageMsg, setAgeMsg] = useState(null)
   const load = () => { if (isSupabaseConfigured) myMemberships().then((r) => setOrgs(r || [])).catch(() => {}) }
   useEffect(load, [])
   const join = async () => {
@@ -17,6 +18,10 @@ export default function Settings({ state, setState, onReset, onJoined }) {
     try { const r = await joinWithCode(code); setMsg({ ok: t('joinOk', { org: r.org }) }); setCode(''); load(); if (onJoined) onJoined() } catch { setMsg({ err: t('joinBad') }) }
   }
   const leave = async (id) => { if (confirm(t('leaveConfirm'))) { try { await leaveOrg(id); load(); if (onJoined) onJoined() } catch { /* ignore */ } } }
+  const changeAge = async (b) => {
+    setAgeMsg(null)
+    try { await setMyAge(b); setState({ ...state, age: b }); setAgeMsg({ ok: t('ageSaved') }); if (onJoined) onJoined() } catch { setAgeMsg({ err: t('ageBySchool') }) }
+  }
   const wipe = async () => {
     if (!confirm(t('deleteConfirm'))) return
     try { await deleteMyData() } catch { /* offline: local data is still cleared */ }
@@ -38,6 +43,15 @@ export default function Settings({ state, setState, onReset, onJoined }) {
         <button className={'btn' + (lang === 'ha' ? '' : ' ghost')} onClick={() => setLang('ha')}>HAUSA</button>
         <button className={'btn' + (lang === 'en' ? '' : ' ghost')} onClick={() => setLang('en')}>ENGLISH</button>
       </div>
+      {isSupabaseConfigured && (
+        <div className="card"><h3>{t('ageLabel')}</h3>
+          <select className="input" value={state.age || ''} disabled={orgs.length > 0} onChange={(e) => changeAge(e.target.value)}>
+            <option value="">—</option>{['5-7', '8-10', '11-13', '14-17'].map((b) => <option key={b} value={b}>{t('ageBands')[b]}</option>)}
+          </select>
+          {orgs.length > 0 && <p className="small">{t('ageBySchool')}</p>}
+          {ageMsg && <p className={ageMsg.err ? 'bad' : 'good'}>{ageMsg.err || ageMsg.ok}</p>}
+        </div>
+      )}
       {isSupabaseConfigured && (
         <div className="card"><h3>{t('mySchool')}</h3>
           {orgs.length === 0 && <p className="small">{t('noSchool')}</p>}

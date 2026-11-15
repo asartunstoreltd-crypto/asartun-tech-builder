@@ -68,3 +68,16 @@ export const createCodes = (days, count, note) => call('admin_create_codes', { p
 export const listCodes = () => call('admin_list_codes')
 export const revokeCode = (id) => call('admin_revoke_code', { p_id: id })
 export const groupCode = (c) => (c && c.length === 10 ? c.slice(0, 5) + '-' + c.slice(5) : c)
+
+// ---- levels (age groups), risk, organization curriculum ----
+export const listLevels = async () => must(await db.from('lesson_levels').select('*').order('position'))
+export const saveLevel = async (l) => {
+  const row = { slug: l.slug, name: l.name, min_age: Number(l.min_age), max_age: Number(l.max_age), position: Number(l.position) || 0 }
+  return l.id ? must(await db.from('lesson_levels').update(row).eq('id', l.id)) : must(await db.from('lesson_levels').insert(row))
+}
+export const deleteLevel = async (id) => must(await db.from('lesson_levels').delete().eq('id', id))
+export const listMissionMeta = async () => must(await db.from('missions').select('slug,title,status,level_id,risk_level,mission_no').order('mission_no', { ascending: true, nullsFirst: false }))
+export const saveMissionMeta = async (rows) => { for (const r of rows) must(await db.from('missions').update({ level_id: r.level_id || null, risk_level: r.risk_level }).eq('slug', r.slug)) }
+export const orgCurriculum = (org) => call('org_curriculum', { p_org: org })
+export const setOrgCurriculum = (org, slugs) => call('org_set_curriculum', { p_org: org, p_slugs: slugs })
+export const setLearnerAge = (org, user, band) => call('org_set_learner_age', { p_org: org, p_user: user, p_band: band })

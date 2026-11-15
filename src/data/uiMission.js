@@ -100,3 +100,13 @@ Object.assign(uiMission.en, {
 
 Object.assign(uiMission.ha, { needInternet: 'Ana buƙatar intanet don saukar da darussa a karon farko. Ka haɗa intanet ka sake buɗe app ɗin.' })
 Object.assign(uiMission.en, { needInternet: 'Internet is needed the first time to download the lessons. Connect and open the app again.' })
+
+// Levels (age groups) and age
+Object.assign(uiMission.ha, {
+  ageLabel: 'Zaɓi shekarunka', ages: 'shekaru {a}–{b}', ageLocked: 'Wannan darasin na yara masu shekaru {n} zuwa sama ne. Idan ka kai wannan shekarun, ka zaɓi shekarunka a Saituna.',
+  ageLockedShort: '🔒 Shekaru {n}+', withAdult: '⚠️ Tare da babba', ageBySchool: 'Makarantarka ko kamfaninka ne ke saita shekarunka.', ageSaved: 'An ajiye shekaru. ✅',
+})
+Object.assign(uiMission.en, {
+  ageLabel: 'Choose your age', ages: 'ages {a}–{b}', ageLocked: 'This lesson is for children aged {n} and over. If you are, choose your age in Settings.',
+  ageLockedShort: '🔒 Ages {n}+', withAdult: '⚠️ With an adult', ageBySchool: 'Your school or company sets your age.', ageSaved: 'Age saved. ✅',
+})
