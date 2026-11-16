@@ -15,7 +15,8 @@
     "test:phase2": "node scripts/test-phase2.mjs",
     "generate:device": "node scripts/generate-device-levels.mjs",
     "generate:phase3": "node scripts/generate-phase3.mjs",
-    "test:phase3": "node scripts/test-phase3.mjs"
+    "test:phase3": "node scripts/test-phase3.mjs",
+    "test:adult": "node scripts/test-adult.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

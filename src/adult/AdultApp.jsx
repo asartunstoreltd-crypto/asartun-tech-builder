@@ -1,0 +1,32 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { AdultProvider } from './AdultAuth.jsx'
+import { Landing, Login, Register } from './pages/Public.jsx'
+import { AssessmentPage, Courses, Help, Home, Practice, Shell } from './pages/Learner.jsx'
+import { lazy, Suspense } from 'react'
+import './adult.css'
+
+// Facilitator area is split out so learners never download it.
+const Teach = lazy(() => import('./pages/Teach.jsx'))
+
+export default function AdultApp() {
+  return (
+    <AdultProvider>
+      <div className="adult">
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="login" element={<Login />} />
+          <Route path="register" element={<Register />} />
+          <Route element={<Shell />}>
+            <Route path="home" element={<Home />} />
+            <Route path="assessment" element={<AssessmentPage />} />
+            <Route path="courses" element={<Courses />} />
+            <Route path="write" element={<Practice />} />
+            <Route path="help" element={<Help />} />
+          </Route>
+          <Route path="teach/*" element={<Suspense fallback={null}><Teach /></Suspense>} />
+          <Route path="*" element={<Navigate to="/adult" replace />} />
+        </Routes>
+      </div>
+    </AdultProvider>
+  )
+}
