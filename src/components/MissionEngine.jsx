@@ -9,16 +9,27 @@ import OrderPractice from '../games/OrderPractice'
 import SortGame from '../games/SortGame'
 import BusinessCalculator from '../games/BusinessCalculator'
 import QuizEngine from '../games/QuizEngine'
+import PredictGame from '../games/PredictGame'
+import SimLab from '../games/SimLab'
+import BusinessPlan from '../games/BusinessPlan'
+import ReflectGame from '../games/ReflectGame'
+import { savePortfolio } from '../lib/portfolio.js'
 
 // Reusable mission engine: TEACH → SHOW → PRACTICE → TEST (challenge + quiz) → REWARD.
 // Give it any mission object shaped like data/cassavaMission.js.
 // New challenge types (circuit, solar...) are added to `challengeTypes`.
 const safetyOptions = [{ kind: 'safe', labelKey: 'canDo', icon: '✅' }, { kind: 'adult', labelKey: 'askAdult', icon: '🙋' }]
+// Each type is (challenge, done, save). `save(content)` puts the child's work in their portfolio (types that make something to keep).
 const challengeTypes = {
   safety: (c, done) => <SortGame items={c.items} onDone={done} options={safetyOptions} askKey="safetyAsk" />,
   sort: (c, done) => <SortGame items={c.items} onDone={done} {...(c.options ? { options: c.options, ask: c.ask } : {})} />,
   business: (c, done) => <BusinessCalculator onDone={done} />,
+  predict: (c, done, save) => <PredictGame c={c} onDone={done} save={save} />,
+  sim: (c, done, save) => <SimLab c={c} onDone={done} save={save} />,
+  business_plus: (c, done, save) => <BusinessPlan onDone={done} save={save} />,
+  reflect: (c, done, save) => <ReflectGame c={c} onDone={done} save={save} />,
 }
+const portfolioKind = { predict: 'predict', sim: 'simulate', business_plus: 'business', reflect: 'reflect' }
 
 export default function MissionEngine({ mission, state, award, onExit, track }) {
   const { t, L } = useLang()
@@ -106,7 +117,9 @@ export default function MissionEngine({ mission, state, award, onExit, track }) 
         <div>
           <Guide say={t('gChallenge')} audioId="ui.gChallenge" />
           {chal.instructions && <p className="help">{L(chal.instructions)}</p>}
-          <div key={chal.key}>{challengeTypes[chal.type](chal, () => aw('challenge-' + chal.key, rw[chal.key]))}</div>
+          <div key={chal.key}>{challengeTypes[chal.type]
+            ? challengeTypes[chal.type](chal, () => aw('challenge-' + chal.key, rw[chal.key]), (content) => savePortfolio(mission.id, chal.key, portfolioKind[chal.type] || 'reflect', content))
+            : <div className="card"><p>{t('unknownChallenge')}</p><button className="btn" onClick={() => (ch < mission.challenges.length - 1 ? setCh(ch + 1) : next())}>{t('continue')}</button></div>}</div>
           {chalDone && <button className="btn" onClick={() => (ch < mission.challenges.length - 1 ? setCh(ch + 1) : next())}>{t('continue')}</button>}
         </div>
       )}

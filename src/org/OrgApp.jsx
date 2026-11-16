@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { AdminAuthProvider, useAdminAuth } from '../admin/AdminAuth.jsx'
 import { OrgClasses, OrgInsights, OrgLearners, OrgLessons } from '../admin/orgparts.jsx'
+import OrgSkills from './OrgSkills.jsx'
 import { staffOrgs } from '../admin/api2.js'
 import { isSupabaseConfigured, supabaseAdmin } from '../lib/supabase.js'
 import '../admin/admin.css'
@@ -92,9 +93,10 @@ function OrgHome() {
               {orgs.length > 1 && <select value={sel} onChange={(e) => setSel(e.target.value)}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>}
             </div>
             {org.join_code && <p>Organization code: <code className="adm-code">{org.join_code}</code> <span className="adm-note">(children can also use a class code)</span></p>}
-            <div className="adm-tabs">{[['learners', 'Learners'], ['report', 'Where they struggle'], ['classes', 'Classes'], ['lessons', 'Lessons']]
+            <div className="adm-tabs">{[['learners', 'Learners'], ['skills', 'Skills & projects'], ['report', 'Where they struggle'], ['classes', 'Classes'], ['lessons', 'Lessons']]
               .map(([k, n]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{n}</button>)}</div>
             {tab === 'learners' && <OrgLearners key={sel} orgId={sel} orgName={org.name} />}
+            {tab === 'skills' && <OrgSkills key={sel} orgId={sel} />}
             {tab === 'report' && <OrgInsights key={sel} orgId={sel} />}
             {tab === 'classes' && <OrgClasses key={sel} orgId={sel} canEdit={org.role === 'org_admin'} />}
             {tab === 'lessons' && <OrgLessons key={sel} orgId={sel} canEdit={org.role === 'org_admin'} />}

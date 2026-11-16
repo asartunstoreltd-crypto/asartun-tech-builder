@@ -23,6 +23,16 @@ export const addClass = async (org, name) => must(await db.from('org_classes').i
 export const deleteClass = async (id) => must(await db.from('org_classes').delete().eq('id', id))
 
 export const staffOrgs = () => call('org_staff_orgs')
+
+// Competencies, portfolio and teacher assessment (migration 015)
+export const listCompetencies = async () => must(await db.from('competencies').select('slug,name,position').order('position'))
+export const missionCompetencies = async (id) => must(await db.from('mission_competencies').select('competency').eq('mission_id', id)).map((r) => r.competency)
+export const setMissionCompetencies = (id, slugs) => call('admin_set_mission_competencies', { p_mission: id, p_slugs: slugs })
+export const orgLearnerPortfolio = (org, user) => call('org_learner_portfolio', { p_org: org, p_user: user })
+export const orgAssess = (org, user, competency, score, comment, mission, entry) =>
+  call('org_assess', { p_org: org, p_user: user, p_competency: competency, p_score: score, p_comment: comment || null, p_mission: mission || null, p_entry: entry || null })
+export const orgDeleteAssessment = (org, id) => call('org_delete_assessment', { p_org: org, p_id: id })
+export const orgCompetencyReport = (org) => call('org_competency_report', { p_org: org })
 export const orgLearners = (org) => call('org_learners', { p_org: org })
 export const orgLearnerResults = (org, user) => call('org_learner_results', { p_org: org, p_user: user })
 export const orgReport = (org) => call('org_report', { p_org: org })

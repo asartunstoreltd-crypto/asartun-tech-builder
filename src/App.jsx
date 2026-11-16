@@ -6,6 +6,7 @@ import { flush, heartbeat, joinWithCode, logWrong, myAge, sendEvent, startProfil
 import { isSupabaseConfigured } from './lib/supabase.js'
 import { ageBlocked } from './lib/age.js'
 import { pickVariants } from './lib/variants.js'
+import Portfolio from './pages/Portfolio.jsx'
 import NavBar from './components/NavBar'
 import LangSwitcher from './components/LangSwitcher'
 import Rewards from './pages/Rewards'
@@ -100,6 +101,7 @@ export default function App() {
   else body = (
     <>
       {view === 'rewards' && <Rewards state={s} />}
+      {view === 'portfolio' && <Portfolio onBack={() => setView('dashboard')} />}
       {view === 'parent' && <Parent state={s} content={content} />}
       {view === 'settings' && <Settings state={s} setState={setS} onReset={reset} onJoined={refresh} />}
       {view === 'dashboard' && (
@@ -108,6 +110,7 @@ export default function App() {
             <div><h2>{t('hi', { name: s.nick })} 👋</h2><p className="small">{t('tagline')}</p></div>
             <div className="pts">⭐ {s.points}</div>
           </header>
+          <button className="btn ghost" onClick={() => setView('portfolio')}>{t('portfolioBtn')}</button>
           <h3>{t('missions')}</h3>
           {loading && <p className="small">⏳</p>}
           {offline && missions.length === 0 && <p className="warn">{t('needInternet')}</p>}

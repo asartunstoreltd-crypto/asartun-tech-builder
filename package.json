@@ -12,7 +12,10 @@
     "test:business": "node scripts/test-business.mjs",
     "test:variants": "node scripts/test-variants.mjs",
     "test:device": "node scripts/test-device-levels.mjs",
-    "generate:device": "node scripts/generate-device-levels.mjs"
+    "test:phase2": "node scripts/test-phase2.mjs",
+    "generate:device": "node scripts/generate-device-levels.mjs",
+    "generate:phase3": "node scripts/generate-phase3.mjs",
+    "test:phase3": "node scripts/test-phase3.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

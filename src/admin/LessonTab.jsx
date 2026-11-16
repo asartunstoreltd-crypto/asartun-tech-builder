@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SortList } from './ui.jsx'
 import { PageEditor, ProcessEditor, SortEditor, BusinessInfo, QuizEditor, RewardEditor } from './blocks.jsx'
+import { PredictEditor, SimEditor, PlanInfo, ReflectEditor } from './blocks2.jsx'
 import { STEP_TYPES, typeInfo, newBlock, cloneBlock, pointsOf, rule } from './api.js'
 
 const SECTIONS = [
@@ -70,13 +71,18 @@ export default function LessonTab({ st, setSt, meta }) {
             title={(b) => `${typeInfo(b.type).emoji} ${typeInfo(b.type).name}: ${name(b.content.name) || '(unnamed)'} · ${b.content.items.length} steps`}
             render={(b) => <ProcessEditor c={b.content} set={(p) => edit('procs', b.uid, p)} />} />}
           {sec.id === 'chals' && <SortList {...common('chals')}
-            title={(b) => `${typeInfo(b.type).emoji} ${typeInfo(b.type).name}${b.content.type === 'sort' ? ': ' + (name(b.content.ask) || '(no question)') : ''}`}
+            title={(b) => `${typeInfo(b.type).emoji} ${typeInfo(b.type).name}${b.content.type === 'sort' ? ': ' + (name(b.content.ask) || '(no question)') : ''}${['predict', 'reflect', 'sim'].includes(b.content.type) ? ': ' + (name(b.content.ask || b.content.title) || '(untitled)') : ''}`}
             render={(b) => {
               const points = pointsOf(st.rw[b.key])
               const setPoints = (v) => setRw({ ...st.rw, [b.key]: rule(v, '') })
-              return b.content.type === 'business'
-                ? <BusinessInfo points={points} setPoints={setPoints} />
-                : <SortEditor c={b.content} set={(p) => edit('chals', b.uid, p)} points={points} setPoints={setPoints} />
+              const set = (p) => edit('chals', b.uid, p)
+              const t = b.content.type
+              if (t === 'business') return <BusinessInfo points={points} setPoints={setPoints} />
+              if (t === 'predict') return <PredictEditor c={b.content} set={set} points={points} setPoints={setPoints} />
+              if (t === 'sim') return <SimEditor c={b.content} set={set} points={points} setPoints={setPoints} />
+              if (t === 'business_plus') return <PlanInfo points={points} setPoints={setPoints} />
+              if (t === 'reflect') return <ReflectEditor c={b.content} set={set} points={points} setPoints={setPoints} />
+              return <SortEditor c={b.content} set={set} points={points} setPoints={setPoints} />
             }} />}
           {sec.id === 'quiz' && <SortList {...common('quiz')}
             title={(b) => `❓ ${name(b.content.question) || '(new question)'}`}

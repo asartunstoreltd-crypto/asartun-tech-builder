@@ -19,6 +19,10 @@ export const STEP_TYPES = [
   { type: 'dragdrop', emoji: '🧲', name: 'Drag and Drop Activity', section: 'chals', help: 'Match items to groups (2 to 4 groups). On phones the child taps the group.' },
   { type: 'ordering', emoji: '🔢', name: 'Ordering Activity', section: 'procs', help: 'The child puts the steps in the right order (after watching them).' },
   { type: 'simulation', emoji: '💰', name: 'Simulation', section: 'chals', help: 'Ready-made business calculator (cost, selling price, profit). Other simulations need a developer.' },
+  { type: 'predict', emoji: '🔮', name: 'Prediction (science)', section: 'chals', help: 'The child predicts what will happen, then sees the result and the explanation.' },
+  { type: 'sim', emoji: '🧪', name: 'Science simulation / prototype test', section: 'chals', help: 'The child changes settings, runs tests, records readings and finds the best design. Model values, not real measurements.' },
+  { type: 'business_plus', emoji: '📊', name: 'Business plan (unit cost, break-even)', section: 'chals', help: 'Unit cost, selling price, profit and break-even. Saved to the portfolio.' },
+  { type: 'reflect', emoji: '📝', name: 'Design brief / presentation', section: 'chals', help: 'The child answers guiding questions in their own words. Saved to the portfolio for the teacher.' },
   { type: 'quiz', emoji: '❓', name: 'Quiz', section: 'quiz', help: 'One question with answers and an explanation.' },
   { type: 'challenge', emoji: '🏁', name: 'Challenge', section: 'chals', help: 'A sorting challenge to finish the lesson.' },
   { type: 'summary', emoji: '📝', name: 'Summary', section: 'teach', help: 'Remind the child of the key points.' },
@@ -35,6 +39,12 @@ export function newBlock(type) {
   if (section === 'procs') return { uid, type, key: 'p_' + rid(), _open: true, content: { emoji: '⚙️', name: blank(), items: [newItem(), newItem()] } }
   if (section === 'quiz') return { uid, type, _open: true, content: { question: blank(), options: [blank(), blank(), blank()], correct: 0, explanation: blank(), media: {} } }
   if (type === 'simulation') return { uid, type, key: 'c_' + rid(), _open: true, content: { type: 'business' } }
+  const mk = (content) => ({ uid, type, key: 'c_' + rid(), _open: true, content })
+  if (type === 'predict') return mk({ type: 'predict', ask: blank(), options: [blank(), blank()], correct: 0, table: [], explain: blank() })
+  if (type === 'sim') return mk({ type: 'sim', title: blank(), intro: blank(), goal: blank(), unit: '°C', base: 30, better: 'low', minRuns: 3,
+    vars: [{ key: 'v_' + rid(), label: blank(), options: [{ id: 'o_' + rid(), label: blank(), effect: 0 }, { id: 'o_' + rid(), label: blank(), effect: 0 }] }], explain: blank() })
+  if (type === 'business_plus') return mk({ type: 'business_plus' })
+  if (type === 'reflect') return mk({ type: 'reflect', title: blank(), prompts: [blank()], minChars: 15 })
   const g1 = 'g_' + rid()
   const g2 = 'g_' + rid()
   return { uid, type, key: 'c_' + rid(), _open: true, content: { type: 'sort', ask: blank(),
@@ -48,7 +58,7 @@ export function cloneBlock(b) {
 }
 
 // ---------- database rows <-> editor state ----------
-const OPTIONAL = ['instructions', 'summary', 'why']
+const OPTIONAL = ['instructions', 'summary', 'why', 'intro', 'goal']
 const MEDIA = ['image', 'video', 'audio_ha', 'audio_en']
 const emptyLang = (x) => x && typeof x === 'object' && !String(x.ha || '').trim() && !String(x.en || '').trim()
 // Drops editor-only keys and EMPTY optional fields (an optional text with one language filled is kept, so it is flagged as a missing translation).
@@ -70,8 +80,10 @@ export const prune = (v) => {
 const defaultStages = ['teach', 'show', 'practice', 'challenge', 'quiz', 'reward']
 const defaultRules = { teach: [10, 'Resource Explorer'], show: 5, practice: [10, 'Young Inventor'], quiz: 5, finish: 10 }
 
+export const NEW_CHALLENGES = ['predict', 'sim', 'business_plus', 'reflect']
 function normChallenge(c) {
   if (c.type === 'business') return { type: 'business' }
+  if (NEW_CHALLENGES.includes(c.type)) { const { kind, ...rest } = c; return rest }   // Phase 2 types are stored exactly as the editor shows them
   const { kind, ...rest } = c
   if (rest.options && rest.options.length) return { ...rest, type: 'sort', items: (rest.items || []).map((i) => ({ uid: rid(), ...i })) }
   const safety = rest.type === 'safety'
@@ -115,7 +127,7 @@ export function toRows(st) {
     content: prune({ ...b.content, kind: b.type }) }))
   st.procs.forEach((b, i) => steps.push({ id: b.id, stage: 'procedure', step_type: 'demonstration', step_key: b.key, position: i,
     content: prune({ ...b.content, kind: b.type, result: { emoji: b.content.emoji, name: b.content.name } }) }))
-  st.chals.forEach((b, i) => steps.push({ id: b.id, stage: 'challenge', step_type: b.content.type === 'business' ? 'simulation' : 'drag_drop', step_key: b.key, position: i,
+  st.chals.forEach((b, i) => steps.push({ id: b.id, stage: 'challenge', step_type: (b.content.type === 'business' || NEW_CHALLENGES.includes(b.content.type)) ? 'simulation' : 'drag_drop', step_key: b.key, position: i,
     content: prune({ ...b.content, key: b.key, kind: b.type }) }))
   const pts = pointsOf(st.rw.quiz) || 5
   const questions = st.quiz.map((b, i) => ({ id: b.id, position: i, question: b.content.question, options: b.content.options,

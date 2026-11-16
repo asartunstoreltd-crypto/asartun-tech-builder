@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Bi, Field } from './ui.jsx'
 import MediaField from './MediaField.jsx'
+import CompetencyPicker from './CompetencyPicker.jsx'
 import { blank, createCategory, slugify } from './api.js'
 
 export default function DetailsTab({ st, setSt, meta, reloadMeta }) {
@@ -12,6 +13,7 @@ export default function DetailsTab({ st, setSt, meta, reloadMeta }) {
     try { await createCategory({ slug: slugify(cat.en), ha: cat.ha, en: cat.en }); setCat(null); await reloadMeta() } catch (e) { setErr(e.message) }
   }
   return (
+    <>
     <div className="adm-card">
       <div className="adm-two">
         <Field label="Emoji"><input value={m.emoji || ''} maxLength={4} onChange={(e) => set({ emoji: e.target.value })} /></Field>
@@ -82,5 +84,7 @@ export default function DetailsTab({ st, setSt, meta, reloadMeta }) {
       ))}
       <button type="button" className="adm-btn ghost" onClick={() => set({ objectives: [...m.objectives, blank()] })}>+ Add objective</button>
     </div>
+    <CompetencyPicker missionId={m.id} />
+    </>
   )
 }

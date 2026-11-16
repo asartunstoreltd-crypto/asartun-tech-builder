@@ -37,8 +37,35 @@ export function checkMission(st, rows, knownPaths) {
   })
   st.chals.forEach((b, i) => {
     const c = b.content
-    if (c.type === 'business') return
+    if (c.type === 'business' || c.type === 'business_plus') return
     const n = `Challenge ${i + 1}`
+    if (c.type === 'predict') {
+      both(c.ask, n + ' question'); both(c.explain, n + ' explanation')
+      if (c.options.length < 2) E.push(`${n} needs at least 2 choices.`)
+      c.options.forEach((o, j) => both(o, `${n} choice ${j + 1}`))
+      if (c.correct < 0 || c.correct >= c.options.length) E.push(`${n}: choose the correct choice.`)
+      ;(c.table || []).forEach((r, j) => { both(r.label, `${n} table row ${j + 1}`); if (bad(r.value)) E.push(`${n} table row ${j + 1}: missing value`) })
+      return
+    }
+    if (c.type === 'sim') {
+      both(c.title, n + ' title'); both(c.explain, n + ' explanation')
+      if (!c.vars.length) E.push(`${n} needs at least one setting.`)
+      c.vars.forEach((v, j) => {
+        both(v.label, `${n} setting ${j + 1}`)
+        if (v.options.length < 2) E.push(`${n} setting ${j + 1} needs at least 2 options.`)
+        v.options.forEach((o, k) => both(o.label, `${n} setting ${j + 1} option ${k + 1}`))
+      })
+      const total = c.vars.reduce((x, v) => x * Math.max(1, v.options.length), 1)
+      if (total < 3) E.push(`${n}: the settings give fewer than 3 different tests.`)
+      W.push(`${n} is a simulation: the numbers are model values. Make sure the lesson says they are examples.`)
+      return
+    }
+    if (c.type === 'reflect') {
+      both(c.title, n + ' title')
+      if (!c.prompts.length) E.push(`${n} needs at least 1 question.`)
+      c.prompts.forEach((q, j) => both(q, `${n} question ${j + 1}`))
+      return
+    }
     both(c.ask, n + ' question')
     if (c.options.length < 2) E.push(`${n} needs at least 2 groups.`)
     if (c.items.length < 2) E.push(`${n} needs at least 2 items.`)
