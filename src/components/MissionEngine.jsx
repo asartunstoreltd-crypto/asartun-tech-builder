@@ -63,6 +63,9 @@ export default function MissionEngine({ mission, state, award, onExit, track }) 
         <div className={'card center-text' + (pg.warn ? ' warnbox' : '')} key={page}>
           <p className="small">{t('pageOf', { n: page + 1, m: pages.length })}</p>
           <div className="big bounce">{pg.emoji}</div>
+          {page === 0 && mission.objectives && mission.objectives.length > 0 && (
+            <div className="help"><b>{t('objectivesTitle')}</b>{mission.objectives.map((o, i) => <p key={i} className="line">🎯 {L(o)}</p>)}</div>
+          )}
           <h3 className="story">{L(pg.title)}</h3>
           {pg.imageUrl && <img className="mimg" src={pg.imageUrl} alt="" />}
           {pg.videoUrl && (/\.gif(\?|$)/i.test(pg.videoUrl) ? <img className="mimg" src={pg.videoUrl} alt="" /> : <video className="mimg" src={pg.videoUrl} controls playsInline />)}

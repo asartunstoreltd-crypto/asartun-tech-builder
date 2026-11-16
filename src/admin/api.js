@@ -138,6 +138,7 @@ export function missionPatch(st) {
     category_id: m.category_id || null, age_min: Number(m.age_min) || 6, age_max: Number(m.age_max) || 12, difficulty: m.difficulty || 'beginner',
     cover_image_path: m.cover_image_path || null, estimated_minutes: m.estimated_minutes ? Number(m.estimated_minutes) : null,
     objectives: m.objectives, stages, reward_rules: rules, engine_options: st.eo,
+    ...(m.family !== undefined ? { family: m.family || null } : {}),   // only once migration 013 exists
   }
 }
 

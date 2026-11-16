@@ -67,6 +67,11 @@ export default function DetailsTab({ st, setSt, meta, reloadMeta }) {
           </select>
         </Field>
       </div>
+      {m.family !== undefined && (
+        <Field label="Lesson family (optional)" hint="Give the Level 1, 2 and 3 versions of the same topic the SAME name, e.g. home-device. Each child then sees only the highest version their age allows. Use a-z, 0-9 and -.">
+          <input value={m.family || ''} maxLength={40} onChange={(e) => set({ family: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })} />
+        </Field>
+      )}
       <MediaField kind="image" label="Cover image" value={m.cover_image_path} onChange={(v) => set({ cover_image_path: v })} />
       <h4>Learning objectives</h4>
       {m.objectives.map((o, i) => (

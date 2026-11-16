@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLang } from '../lib/i18n.jsx'
+import { computeBusiness } from '../lib/business.js'
 const fields = [['raw', 'raw'], ['proc', 'proc'], ['pack', 'pack'], ['price', 'price']]
 
 export default function BusinessCalculator({ onDone }) {
@@ -7,10 +8,9 @@ export default function BusinessCalculator({ onDone }) {
   const [v, setV] = useState({ raw: '', proc: '', pack: '', price: '' })
   const [res, setRes] = useState(null)
   const calc = () => {
-    const n = (k) => Math.max(0, parseFloat(v[k]) || 0)
-    const total = n('raw') + n('proc') + n('pack')
-    setRes({ total, profit: n('price') - total })
-    onDone()
+    const r = computeBusiness(v)
+    setRes(r)
+    if (r.valid) onDone()      // points only for a real attempt (a price and at least one cost)
   }
   return (
     <div className="card">
@@ -22,7 +22,8 @@ export default function BusinessCalculator({ onDone }) {
         </label>
       ))}
       <button className="btn" onClick={calc}>{t('calc')}</button>
-      {res && (
+      {res && !res.valid && <p className="bad">{t('bizNeed')}</p>}
+      {res && res.valid && (
         <div className="result">
           <p>{t('totalLine')}: <b>₦{res.total}</b></p>
           <p>{t('profitLine')}: <b className={res.profit >= 0 ? 'good' : 'bad'}>₦{res.profit}</b></p>

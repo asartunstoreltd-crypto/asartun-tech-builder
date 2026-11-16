@@ -8,7 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "seed:generate": "node scripts/generate-seed.mjs",
-    "check:missions": "node scripts/check-missions.mjs"
+    "check:missions": "node scripts/check-missions.mjs",
+    "test:business": "node scripts/test-business.mjs",
+    "test:variants": "node scripts/test-variants.mjs",
+    "test:device": "node scripts/test-device-levels.mjs",
+    "generate:device": "node scripts/generate-device-levels.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

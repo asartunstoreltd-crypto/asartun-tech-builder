@@ -1,5 +1,5 @@
 # ASARTUN TECH BUILDER  (v0.9 — full version)
-A product of ASARTUN STORE LIMITED. Educational web app for children 8–14, Hausa + English.
+A product of ASARTUN STORE LIMITED. Educational web app for children and teenagers aged 5–17 (three levels), Hausa + English.
 
 ## What is inside
 - **Learner app** — 14 missions (Cassava, Potatoes, Waste, Compost, Solar, Robot, Home Device, Bricks & Interlock, Poultry & Fish, Juice & Drinks, Pottery, Bicycle Repair, Charcoal Briquettes, Tailoring), each: Learn → Watch → Practice → Challenge → Quiz → Prize. Hausa default, English available. Without Supabase it runs with the built-in missions; with Supabase it shows only what admins published and what the learner may open (premium needs payment).
@@ -18,7 +18,7 @@ Without Supabase the app runs with the built-in missions (no `.env` needed).
 1. Create a Supabase project. Copy `.env.example` to `.env.local` and fill `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (public anon key only; **never** the service_role key).
 2. Authentication → Providers → **Anonymous sign-ins: enable** (children use private anonymous accounts).
 3. SQL Editor — run in this order, once each:
-   `001_core_schema` → `002_security_and_functions` → `003_seed_content` → `005_cms_extensions` → `006_learners_orgs_premium` → `008_staff_accounts` → `010_manual_payments_and_lock` → `011_levels_and_curriculum`
+   `001_core_schema` → `002_security_and_functions` → `003_seed_content` → `005_cms_extensions` → `006_learners_orgs_premium` → `008_staff_accounts` → `010_manual_payments_and_lock` → `011_levels_and_curriculum` → `012_award_progress_checks`
    (`003` already contains all 14 missions on a fresh database. `004`, `007` and `009` are only for a database that was seeded earlier: see `docs/PATCH_05_07.md` and `docs/MISSIONS_08_14.md`.)
 4. Create your first Super Admin: see `docs/ADMIN_SETUP.md`.
 4b. To let admins create school/company staff logins from the panel, deploy the Edge Function once: `docs/STAFF_ACCOUNTS.md`.

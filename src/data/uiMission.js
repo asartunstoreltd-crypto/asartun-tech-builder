@@ -33,11 +33,11 @@ Object.assign(uiMission.en, { stopAudio: 'Stop', scriptTitle: 'Voice recording s
 
 // Generic wording so the business challenge works for any mission
 Object.assign(uiMission.ha, {
-  raw: 'Kuɗin kayan da aka saya (₦)', gBusiness: 'Kayan da ba a sarrafa ba suna da arha. Sabon abu zai iya kawo riba. Rubuta lambobi!',
+  raw: 'Kuɗin kayan da aka saya (₦)', objectivesTitle: 'Abin da za ka koya:', bizNeed: 'Ka rubuta aƙalla kuɗi ɗaya da aka kashe da kuma farashin sayarwa, sai ka sake gwadawa.', gBusiness: 'Kayan da ba a sarrafa ba suna da arha. Sabon abu zai iya kawo riba. Rubuta lambobi!',
   formulaTotal: 'Jimillar kuɗi = kuɗin kaya + kuɗin sarrafawa + kuɗin ƙunshewa',
 })
 Object.assign(uiMission.en, {
-  raw: 'Cost of the raw material (₦)', gBusiness: 'Raw materials are cheap. A new product can earn profit. Type some numbers!',
+  raw: 'Cost of the raw material (₦)', objectivesTitle: 'What you will learn:', bizNeed: 'Enter at least one cost and a selling price, then try again.', gBusiness: 'Raw materials are cheap. A new product can earn profit. Type some numbers!',
   formulaTotal: 'Total money = material cost + processing cost + packaging cost',
 })
 

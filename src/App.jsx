@@ -5,6 +5,7 @@ import { useMissions } from './lib/useMissions.js'
 import { flush, heartbeat, joinWithCode, logWrong, myAge, sendEvent, startProfile, syncAll } from './lib/learnerSync.js'
 import { isSupabaseConfigured } from './lib/supabase.js'
 import { ageBlocked } from './lib/age.js'
+import { pickVariants } from './lib/variants.js'
 import NavBar from './components/NavBar'
 import LangSwitcher from './components/LangSwitcher'
 import Rewards from './pages/Rewards'
@@ -112,7 +113,7 @@ export default function App() {
           {offline && missions.length === 0 && <p className="warn">{t('needInternet')}</p>}
           {notice && <p className="warn" onClick={() => setNotice('')}>{notice}</p>}
           {missions.some((m) => m.premium && !m.ready && !ageBlocked(m.minAge, m.risk, s.age)) && <button className="btn alt" onClick={() => setView('unlock')}>{t('lockBanner')}</button>}
-          {levelGroups(missions).map((g) => (
+          {levelGroups(pickVariants(missions, s.age)).map((g) => (
             <div key={g.key}>
               {g.name && <h4 className="level">{L(g.name)} · {t('ages', { a: g.min, b: g.max })}</h4>}
               <div className="grid">

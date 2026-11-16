@@ -71,6 +71,7 @@ export function buildMission(m, steps, questions, map) {
   return {
     id: m.slug, no: m.mission_no ?? 0, title: (m.engine_options && m.engine_options.header_title) || m.title,
     mixed: Boolean(m.engine_options && m.engine_options.mixed), stages: m.stages, rewards: m.reward_rules,
+    objectives: Array.isArray(m.objectives) ? m.objectives : [],
     teach, steps: stepDict, procedures, challenges, quiz,
   }
 }
@@ -108,7 +109,7 @@ export async function loadPublished(client) {
   const list = ms.map((m, i) => ({
     id: m.slug, no: m.mission_no ?? i + 1, emoji: m.emoji, ready: Boolean(content[m.slug]), premium: m.access === 'premium', title: m.title,
     coverUrl: content[m.slug] && m.cover_image_path ? map[m.cover_image_path] : undefined,
-    levelId: m.level_id || null, levelName: levels[m.level_id] && levels[m.level_id].name, minAge: levels[m.level_id] && levels[m.level_id].min_age,
+    family: m.family || null, levelId: m.level_id || null, levelName: levels[m.level_id] && levels[m.level_id].name, minAge: levels[m.level_id] && levels[m.level_id].min_age,
     maxAge: levels[m.level_id] && levels[m.level_id].max_age, levelPos: levels[m.level_id] ? levels[m.level_id].position : 99, risk: m.risk_level || 'low',
   }))
   list.sort((a, b) => a.levelPos - b.levelPos || a.no - b.no)
