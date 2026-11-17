@@ -6,6 +6,8 @@ import { useAdult } from '../AdultAuth.jsx'
 import { normalizePhone } from '../phone.js'
 import Assessment, { AssessmentResult } from './Assessment.jsx'
 import { LangSwitch } from './Public.jsx'
+import { LESSONS, lessonByKey } from '../curriculum.js'
+import { needsPractice } from '../progress.js'
 
 // Facilitator / adult-admin area. The screen only hides things for convenience;
 // the database decides which learners and classes each person may see.
@@ -152,6 +154,12 @@ function LearnerDetail({ id, onBack }) {
         <button className="ad-btn primary" onClick={() => setAssess(true)}>{t('runAssessment')}</button>
         {!sure ? <button className="ad-btn" onClick={() => setSure(true)}>{t('resetPin')}</button> : <button className="ad-btn" onClick={reset}>{t('resetSure')}</button>}
       </div>
+      <h3>{t('lessonsHeading')}</h3>
+      {(d.progress || []).length === 0 ? <p className="ad-note">{t('noProgress')}</p> :
+        <ul className="ad-list">{d.progress.map((r) => { const l = lessonByKey(r.lesson_key); return (
+          <li key={r.lesson_key}><div className="ad-listrow"><strong>{l ? t(l.title.key, l.title.vars) : r.lesson_key}</strong>
+            <span>{r.status === 'completed' ? '✓' : '•'} {r.attempts}×{r.best_trace != null ? ' · ' + t('traceLabel', { pct: Math.round(r.best_trace * 100) }) : ''}{r.write_rating ? ' · ' + ({ yes: t('canDo'), help: t('canHelp'), no: t('cannot') })[r.write_rating] : ''}</span>
+            {needsPractice(r) && <span className="ad-tag">{t('needsPracticeLabel')}</span>}</div></li>) })}</ul>}
       <h3>{t('lastAssessment')}</h3>
       {last ? <><p className="ad-note">{new Date(last.created_at).toLocaleDateString()} · {t(last.mode === 'assisted' ? 'modeAssisted' : 'modeSelf')}</p>
         <AssessmentResult recommended={last.recommended} scores={last.scores} needsConfirmation={last.needs_confirmation} /></> : <p className="ad-note">{t('noAssessmentYet')}</p>}

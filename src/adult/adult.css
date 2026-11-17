@@ -41,3 +41,13 @@
 .hw-area { width:100%; border:3px solid var(--line); border-radius:14px; background:#fff; overflow:hidden; }
 .hw-canvas { display:block; width:100%; height:100%; touch-action:none; user-select:none; -webkit-user-select:none; cursor:crosshair; }
 @media (prefers-reduced-motion: no-preference) { .ad-progress i { transition:width .25s; } }
+/* lessons (phase 4) */
+.ad-giant { font-size:6rem; font-weight:700; line-height:1.05; text-align:center; margin:.1em 0; } .ad-giant span { font-size:.75em; color:var(--muted); } .ad-giant.small { font-size:3rem; white-space:pre-line; word-break:break-word; }
+.ad-lessons { list-style:none; margin:0 0 12px; padding:0; display:flex; flex-direction:column; gap:8px; }
+.ad-lesson { display:flex; align-items:center; gap:12px; min-height:60px; padding:10px 14px; background:var(--card); color:var(--ink); border:2px solid var(--line); border-radius:12px; text-decoration:none; font-weight:600; }
+.ad-lesson.next { border-color:var(--brand); } .ad-lesson.done { border-color:var(--good); } .ad-mark { width:28px; text-align:center; color:var(--good); font-size:1.3rem; flex:none; }
+.ad-tag { margin-left:auto; font-size:.85rem; font-weight:600; background:#fff4d6; color:#4a3a00; border:1px solid #e3c766; border-radius:999px; padding:2px 10px; }
+.ad-opt { font-size:1.6rem; } .ad-opt.right { background:var(--good); color:#fff; border-color:var(--good); } .ad-opt.wrong { border-color:var(--bad); color:var(--bad); }
+.ad-grid[data-kind="letter"] .ad-opt { font-size:2.6rem; }
+.ad-listrow { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:10px 14px; background:var(--card); border:1px solid var(--line); border-radius:12px; }
+.ad-listen svg { margin-right:8px; flex:none; } .ad-listen { display:inline-flex; align-items:center; }

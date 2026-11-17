@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AdultProvider } from './AdultAuth.jsx'
 import { Landing, Login, Register } from './pages/Public.jsx'
 import { AssessmentPage, Courses, Help, Home, Practice, Shell } from './pages/Learner.jsx'
+import { LessonList, LessonPlayer } from './pages/Lessons.jsx'
 import { lazy, Suspense } from 'react'
 import './adult.css'
 
@@ -20,6 +21,8 @@ export default function AdultApp() {
             <Route path="home" element={<Home />} />
             <Route path="assessment" element={<AssessmentPage />} />
             <Route path="courses" element={<Courses />} />
+            <Route path="learn" element={<LessonList />} />
+            <Route path="learn/:key" element={<LessonPlayer />} />
             <Route path="write" element={<Practice />} />
             <Route path="help" element={<Help />} />
           </Route>

@@ -4,6 +4,7 @@ import { learnerApi, staffApi } from '../adultApi.js'
 import { DOMAINS, ITEMS, recommend, scoreAnswers } from '../assessment.js'
 import HandwritingCanvas from '../components/HandwritingCanvas.jsx'
 import AdultAudio, { hasAdultAudio } from '../components/AdultAudio.jsx'
+import { hasVoice, useVoices } from '../speech.js'
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : 'a' + Date.now() + Math.random().toString(16).slice(2))
 const draftKey = (who) => 'adult-assess-draft:' + who
@@ -34,6 +35,7 @@ export default function Assessment({ mode = 'self', learnerId = null, learnerNam
   const who = learnerId || session?.user?.id || 'anon'
   const name = learnerName || profile?.full_name || ''
   const assisted = mode === 'assisted'
+  useVoices()                                          // the phone's voices load a moment after the page opens
   const items = useMemo(() => ITEMS.map((i) => (i.id === 'w2_name' ? { ...i, answer: name } : i)), [name])
   const steps = useMemo(() => items.filter((i) => assisted || !i.staffOnly), [items, assisted])
   const initial = useMemo(() => loadDraft(who), [who])
@@ -46,7 +48,7 @@ export default function Assessment({ mode = 'self', learnerId = null, learnerNam
   const [result, setResult] = useState(null)
   const canvas = useRef(null)
 
-  const noAudio = !assisted && !steps.some((s) => s.needsAudio && hasAdultAudio(lang, s.id))
+  const noAudio = !assisted && !hasVoice(lang) && !steps.some((s) => s.needsAudio && hasAdultAudio(lang, s.id))
   const labels = { pencil: t('pencil'), eraser: t('eraser'), undo: t('undo'), redo: t('redo'), clear: t('clear'), area: t('writeHere') }
 
   const finish = async (final) => {
@@ -104,7 +106,7 @@ export default function Assessment({ mode = 'self', learnerId = null, learnerNam
       <div className="ad-progress" role="progressbar" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={idx}><i style={{ width: (idx / steps.length) * 100 + '%' }} /></div>
       <p className="ad-note">{t('asStep', { n: idx + 1, total: steps.length })}</p>
       <p className="ad-big">{t('ip_' + item.id)}</p>
-      <AdultAudio id={item.id} big />
+      <AdultAudio id={item.id} text={t('ip_' + item.id)} big />
       {item.question && <p className="ad-huge">{item.question}</p>}
       {item.dots && <div className="ad-dotsrow" aria-label={t('ip_n2_count')}>{Array.from({ length: item.dots }, (_, i) => <i key={i} />)}</div>}
       {item.kind === 'choice' && (

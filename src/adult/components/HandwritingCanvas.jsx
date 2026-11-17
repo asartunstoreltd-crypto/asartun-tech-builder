@@ -2,22 +2,77 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 
 // Finger / stylus writing area. Pointer Events work for touch, pen and mouse. No dependency.
 // Strokes are kept as vectors in 0..1 coordinates (tiny to store, independent of screen size).
-// Tools: pencil, eraser, undo, redo, clear (clear can be undone). Phase 4 adds tracing guides on top of this.
+// Tools: pencil, eraser, undo, redo, clear (clear can be undone).
 //
-// Props: height (css px), guide (optional faint text drawn under the writing), labels {pencil,eraser,undo,redo,clear},
-//        disabled, onChange(strokes)
-// Ref:   getStrokes(), isEmpty(), toBlob(type, quality) -> Promise<Blob>, toDataURL(), reset()
+// Props
+//   height | aspect   fixed height in css px, OR width/height ratio (needed when a guide is drawn: guides are laid out for it)
+//   guideStrokes      [{pts:[[x,y]..]}] in the canvas's 0..1 coordinates (from layoutText). Drawn faint, with a numbered start
+//                     dot and an arrow showing the writing direction.
+//   guideMode         'faint' (default) | 'demo' (animates the guide being written, then stays) | 'none'
+//   replayKey         change it to replay the demo
+//   guide             optional faint text drawn under the writing
+//   tools             false hides the toolbar (read-only demonstrations)
+//   labels, disabled, onChange(strokes)
+// Ref: getStrokes(), isEmpty(), toBlob(type, quality), toDataURL(), reset()
 const PEN_W = 0.012          // relative to canvas width
 const ERASER_W = 0.045
+const GUIDE = '#0d5c63'
 
-const HandwritingCanvas = forwardRef(function HandwritingCanvas({ height = 240, guide = '', labels = {}, disabled = false, onChange }, ref) {
+const lineLen = (p) => { let l = 0; for (let i = 1; i < p.length; i++) l += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); return l }
+function pointAtFraction(p, f) {            // position and direction at fraction f (0..1) of the way along a polyline
+  const target = lineLen(p) * f; let acc = 0
+  for (let i = 1; i < p.length; i++) {
+    const seg = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])
+    if (acc + seg >= target && seg > 0) { const t = (target - acc) / seg; return { x: p[i - 1][0] + (p[i][0] - p[i - 1][0]) * t, y: p[i - 1][1] + (p[i][1] - p[i - 1][1]) * t, dx: p[i][0] - p[i - 1][0], dy: p[i][1] - p[i - 1][1] } }
+    acc += seg
+  }
+  const a = p[p.length - 2] || p[0], b = p[p.length - 1]
+  return { x: b[0], y: b[1], dx: b[0] - a[0], dy: b[1] - a[1] }
+}
+
+const HandwritingCanvas = forwardRef(function HandwritingCanvas(
+  { height = 240, aspect, guideStrokes, guideMode = 'faint', replayKey = 0, guide = '', tools = true, labels = {}, disabled = false, onChange }, ref) {
   const wrap = useRef(null)
   const canvas = useRef(null)
   const layer = useRef(null)                    // strokes live on their own layer so the eraser never rubs out the guide
-  const state = useRef({ strokes: [], past: [], future: [], cur: null, pointer: null, raf: 0 })
+  const state = useRef({ strokes: [], past: [], future: [], cur: null, pointer: null, raf: 0, demoT: 1 })
   const [tool, setTool] = useState('pen')
   const [, bump] = useState(0)
   const rerender = () => bump((n) => n + 1)
+  const gs = useRef(guideStrokes); gs.current = guideStrokes
+  const gm = useRef(guideMode); gm.current = guideMode
+
+  const drawGuide = (c, w, h) => {
+    const strokes = gs.current
+    if (!strokes || !strokes.length || gm.current === 'none') return
+    const demo = gm.current === 'demo', T = state.current.demoT
+    c.save(); c.lineCap = 'round'; c.lineJoin = 'round'
+    const base = h * 0.04
+    // faint full path (always)
+    c.strokeStyle = demo ? 'rgba(13,92,99,0.12)' : 'rgba(13,92,99,0.26)'; c.lineWidth = base
+    for (const st of strokes) { c.beginPath(); st.pts.forEach(([x, y], i) => (i ? c.lineTo(x * w, y * h) : c.moveTo(x * w, y * h))); c.stroke() }
+    const total = strokes.length
+    if (demo) {                                   // animated part: stroke k is written during [k/total, (k+1)/total] of T
+      strokes.forEach((st, k) => {
+        const f = Math.max(0, Math.min(1, T * total - k)); if (f <= 0) return
+        const n = Math.max(2, Math.round(st.pts.length * f)); const part = []
+        for (let i = 0; i < n; i++) part.push(i === n - 1 && f < 1 ? Object.values(pointAtFraction(st.pts, f)).slice(0, 2) : st.pts[Math.min(i, st.pts.length - 1)])
+        c.strokeStyle = GUIDE; c.lineWidth = base * 0.8; c.beginPath(); part.forEach(([x, y], i) => (i ? c.lineTo(x * w, y * h) : c.moveTo(x * w, y * h))); c.stroke()
+        if (f < 1) { const e = part[part.length - 1]; c.fillStyle = '#f2a900'; c.beginPath(); c.arc(e[0] * w, e[1] * h, base * 0.9, 0, 7); c.fill() }
+      })
+    }
+    // direction arrow in the middle of each stroke, numbered start dot at the beginning (number only when there are several strokes)
+    strokes.forEach((st, k) => {
+      if (st.pts.length < 2 || lineLen(st.pts) * Math.max(w, h) < 28) return
+      const m = pointAtFraction(st.pts, 0.5), len = Math.hypot(m.dx * w, m.dy * h) || 1, ux = (m.dx * w) / len, uy = (m.dy * h) / len, a = base * 1.5
+      c.fillStyle = GUIDE; c.beginPath()
+      c.moveTo(m.x * w + ux * a, m.y * h + uy * a); c.lineTo(m.x * w - ux * a - uy * a * 0.8, m.y * h - uy * a + ux * a * 0.8); c.lineTo(m.x * w - ux * a + uy * a * 0.8, m.y * h - uy * a - ux * a * 0.8); c.closePath(); c.fill()
+      const s0 = st.pts[0], r = base * 1.25
+      c.beginPath(); c.arc(s0[0] * w, s0[1] * h, r, 0, 7); c.fillStyle = '#1d6b3a'; c.fill()
+      if (total > 1 && !demo) { c.fillStyle = '#fff'; c.font = `bold ${Math.round(r * 1.5)}px system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(k + 1), s0[0] * w, s0[1] * h + 1) }
+    })
+    c.restore()
+  }
 
   const draw = useCallback(() => {
     const cv = canvas.current; if (!cv) return
@@ -45,8 +100,9 @@ const HandwritingCanvas = forwardRef(function HandwritingCanvas({ height = 240, 
       c.font = `${Math.round(h * 0.7)}px system-ui, sans-serif`
       c.fillText(guide, w / 2, h / 2)
     }
+    drawGuide(c, w, h)
     c.drawImage(ly, 0, 0)
-  }, [guide])
+  }, [guide])                                   // eslint-disable-line react-hooks/exhaustive-deps
 
   const schedule = useCallback(() => {
     const s = state.current
@@ -60,14 +116,28 @@ const HandwritingCanvas = forwardRef(function HandwritingCanvas({ height = 240, 
     const fit = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       canvas.current.width = Math.max(1, Math.round(el.clientWidth * dpr))
-      canvas.current.height = Math.max(1, Math.round(height * dpr))
+      canvas.current.height = Math.max(1, Math.round(el.clientHeight * dpr))
       draw()
     }
     fit()
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null
     ro?.observe(el)
     return () => { ro?.disconnect(); cancelAnimationFrame(state.current.raf) }
-  }, [height, draw])
+  }, [height, aspect, draw])
+
+  // redraw when the guide changes; run the demonstration animation
+  useEffect(() => {
+    const s = state.current
+    cancelAnimationFrame(s.demoRaf)
+    if (guideMode !== 'demo') { s.demoT = 1; draw(); return }
+    const reduce = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduce) { s.demoT = 1; draw(); return }
+    s.demoT = 0
+    const total = (guideStrokes?.length || 1) * 1100 + 300; const t0 = performance.now()
+    const tick = (now) => { s.demoT = Math.min(1, (now - t0) / total); draw(); if (s.demoT < 1) s.demoRaf = requestAnimationFrame(tick) }
+    s.demoRaf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(s.demoRaf)
+  }, [guideStrokes, guideMode, replayKey, draw])
 
   const commit = (strokes) => {
     const s = state.current
@@ -120,14 +190,16 @@ const HandwritingCanvas = forwardRef(function HandwritingCanvas({ height = 240, 
   const s = state.current
   return (
     <div className="hw">
-      <div className="hw-tools" role="toolbar">
-        <button type="button" className={'hw-btn' + (tool === 'pen' ? ' on' : '')} onClick={() => setTool('pen')} aria-pressed={tool === 'pen'}>{labels.pencil || 'Pencil'}</button>
-        <button type="button" className={'hw-btn' + (tool === 'eraser' ? ' on' : '')} onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'}>{labels.eraser || 'Eraser'}</button>
-        <button type="button" className="hw-btn" onClick={undo} disabled={!s.past.length}>{labels.undo || 'Undo'}</button>
-        <button type="button" className="hw-btn" onClick={redo} disabled={!s.future.length}>{labels.redo || 'Redo'}</button>
-        <button type="button" className="hw-btn" onClick={clear} disabled={!s.strokes.length}>{labels.clear || 'Clear'}</button>
-      </div>
-      <div className="hw-area" ref={wrap} style={{ height }}>
+      {tools && (
+        <div className="hw-tools" role="toolbar">
+          <button type="button" className={'hw-btn' + (tool === 'pen' ? ' on' : '')} onClick={() => setTool('pen')} aria-pressed={tool === 'pen'}>{labels.pencil || 'Pencil'}</button>
+          <button type="button" className={'hw-btn' + (tool === 'eraser' ? ' on' : '')} onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'}>{labels.eraser || 'Eraser'}</button>
+          <button type="button" className="hw-btn" onClick={undo} disabled={!s.past.length}>{labels.undo || 'Undo'}</button>
+          <button type="button" className="hw-btn" onClick={redo} disabled={!s.future.length}>{labels.redo || 'Redo'}</button>
+          <button type="button" className="hw-btn" onClick={clear} disabled={!s.strokes.length}>{labels.clear || 'Clear'}</button>
+        </div>
+      )}
+      <div className="hw-area" ref={wrap} style={aspect ? { aspectRatio: String(aspect) } : { height }}>
         <canvas ref={canvas} className="hw-canvas" aria-label={labels.area || 'Writing area'}
           onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
       </div>
