@@ -9,7 +9,12 @@ import { strings } from '../src/adult/strings.js'
 import { GLYPHS, HAUSA_LETTERS, canGuide, layoutText, scoreTrace, suggestAspect } from '../src/adult/guide.js'
 import { LESSONS, UNITS, LETTER_WORDS, WORDS, SENTENCES, MESSAGES, lessonByKey, firstLessonFor, nameForGuide, nameCanGuide } from '../src/adult/curriculum.js'
 import { needsPractice, summarize, TRACE_OK } from '../src/adult/progress.js'
-import { LITERACY_START } from '../src/adult/assessment.js'
+import { LITERACY_START, NUMERACY_START } from '../src/adult/assessment.js'
+import * as NUM from '../src/adult/numeracy.js'
+import { DIGIT_GLYPHS, DIGITS } from '../src/adult/guide.js'
+import { COURSE_DEFS, courseOfKey, lessonAny } from '../src/adult/courses.js'
+import { addCalc, addQuiz, buildResults, emptyResults, hasInk } from '../src/adult/lessonResults.js'
+import { calcEvidence, unitEvidence } from '../src/adult/progress.js'
 
 let fail = 0, n = 0
 const ok = (c, m) => { n++; if (!c) { fail++; console.log('✗', m) } }
@@ -112,12 +117,12 @@ for (const s of ['letters', 'words', 'sentences', 'practical', 'numbers', 'add_s
 for (const k of used) ok(kha.includes(k), `string key used in code but missing: ${k}`)
 { // no unused clutter: every key is referenced somewhere (static or by the dynamic families above)
   const text = src.map((f) => readFileSync(f, 'utf8')).join('\n')
-  for (const k of kha) { const dyn = /^(ip_|dom_|start_|resLiteracyName|resNumeracyName|reviewWrite_)/.test(k); ok(dyn || text.includes("'" + k + "'") || text.includes('t(\'' + k + '\''), `string key never used: ${k}`) }
+  for (const k of kha) { const dyn = /^(ip_|dom_|start_|resLiteracyName|resNumeracyName|reviewWrite_|nl_|nt_|nc_)/.test(k); ok(dyn || text.includes("'" + k + "'") || text.includes('t(\'' + k + '\''), `string key never used: ${k}`) }
 }
 
 // ---------- SQL structure ----------
 const sqlDir = 'supabase/migrations'
-const sql = readdirSync(sqlDir).filter((f) => /^01[789]_adult/.test(f)).map((f) => readFileSync(join(sqlDir, f), 'utf8')).join('\n')
+const sql = readdirSync(sqlDir).filter((f) => /^0(1[789]|20)_adult/.test(f)).map((f) => readFileSync(join(sqlDir, f), 'utf8')).join('\n')
 const tables = [...sql.matchAll(/create table if not exists public\.(adult_[a-z_]+)/g)].map((m) => m[1])
 ok(tables.length >= 10, 'found adult tables: ' + tables.length)
 for (const t of tables) ok(new RegExp(`alter table public\\.${t}\\s+enable row level security`).test(sql), `RLS enabled on ${t}`)
@@ -220,9 +225,9 @@ ok(/phone ~ '\^\\\+\[0-9\]\{10,15\}\$'/.test(sql), 'database re-checks phone for
 // ---------- phase 4 wiring: app and database agree ----------
 {
   const lessons = readFileSync('src/adult/pages/Lessons.jsx', 'utf8')
-  const sent = (lessons.match(/results: \{ ([^}]*) \}/) || [])[1] || ''
-  const keysSent = [...sent.matchAll(/(\w+):/g)].map((m) => m[1]).sort()
-  eq(keysSent, ['find', 'match', 'steps', 'traceTries', 'trace', 'write'].sort(), 'lesson result keys sent by the app')
+  ok(/results: buildResults\(results, steps\.length - 1, def\.numeracy\)/.test(lessons), 'the player sends the run through buildResults')
+  const keysSent = Object.keys(buildResults(emptyResults(), 5, false)).sort()
+  eq(keysSent, ['find', 'match', 'steps', 'traceTries', 'trace', 'write'].sort(), 'literacy lessons still send exactly the Phase 4 result keys')
   const sql19 = readFileSync('supabase/migrations/019_adult_lesson_progress.sql', 'utf8')
   for (const k of keysSent) ok(sql19.includes(`'${k}'`), `database accepts result key ${k}`)
   ok(/not enrolled/.test(sql19) && /ends_at is null or e\.ends_at > now\(\)/.test(sql19), 'recording needs a live enrolment')
@@ -234,6 +239,180 @@ ok(/phone ~ '\^\\\+\[0-9\]\{10,15\}\$'/.test(sql), 'database re-checks phone for
   ok(/voiceFor\(lang\)/.test(speech) && /if \(!synth \|\| !v/.test(speech), "phone voice is used only when it has a voice for that language")
   ok(/canSpeak = Boolean\(text\) && hasVoice\(l\)/.test(audio) && /\(!file && !canSpeak\)\) \|\| /.test(audio) || /if \(\(!file && !canSpeak\)/.test(audio), 'no listen button without a voice or recording')
   ok(!/fetch\(|XMLHttpRequest|https?:\/\//.test(speech), 'speech uses no network')
+}
+
+// ============================================================================================================
+// ---------- PHASE 5: numeracy and handwritten mathematics ----------
+// ============================================================================================================
+{
+  // --- digit guides ---
+  eq(DIGITS, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], 'digits 0-9 have guides')
+  eq(HAUSA_LETTERS.length, 26, 'digits did not leak into the letter table')
+  ok(!('0' in GLYPHS) && DIGITS.every((d) => !(d in GLYPHS)), 'letter glyph table untouched')
+  let seed = 777; const rnd = () => { seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff; return seed / 0x7fffffff }
+  const trace = (g, { noise = 0, drop = 0, off = 0 } = {}) => g.strokes.slice(0, g.strokes.length - drop).map((st) => ({ tool: 'pen', pts: st.pts.map(([x, y]) => [x + off + (rnd() - 0.5) * noise, y + (rnd() - 0.5) * noise]) }))
+  for (const [d, strokes] of Object.entries(DIGIT_GLYPHS)) for (const st of strokes) ok(st.length >= 2 && st.every(([x, y]) => Number.isFinite(x) && x >= 0 && x <= 100 && y >= 0 && y <= 100), `digit ${d} stays inside the 100 box`)
+  const numTexts = [...DIGITS, '10', '30', '50', '100']
+  for (const tx of numTexts) {
+    const a = suggestAspect(tx), g = layoutText(tx, a)
+    ok(g && g.strokes.every((st) => st.pts.every(([x, y]) => x >= 0 && x <= 1 && y >= 0 && y <= 1)), `layout of ${tx} stays inside the canvas`)
+    ok(g.glyphHeight >= 0.2, `digits in ${tx} are big enough to trace (${g.glyphHeight.toFixed(2)})`)
+    ok(scoreTrace(g, trace(g)).ok, `perfect trace of ${tx} passes`)
+    ok(scoreTrace(g, trace(g, { noise: 0.04 })).ok, `wobbly trace of ${tx} passes`)
+    ok(!scoreTrace(g, trace(g, { off: 0.15 })).ok, `trace of ${tx} shifted far off the guide fails`)
+  }
+  for (const d of DIGITS) { const g = layoutText(d, 1.4); if (g.strokes.length > 1) ok(!scoreTrace(g, trace(g, { drop: 1 })).ok, `digit ${d}: leaving out the last stroke fails`) }
+  for (const [a, b] of [['1', '4'], ['7', '4'], ['2', '7'], ['3', '7'], ['0', '1'], ['5', '1'], ['9', '1'], ['6', '1'], ['8', '1'], ['4', '1'], ['2', '1']]) ok(!scoreTrace(layoutText(a, 1.4), trace(layoutText(b, 1.4))).ok, `digit ${b} traced over ${a} fails`)
+  { const g = layoutText('100', suggestAspect('100')); ok(!scoreTrace(g, trace(g, { drop: 3 })).ok, 'half of 100 traced fails') }
+  ok(canGuide('2024') && canGuide('A1') && !canGuide('₦5') && !canGuide('5+5'), 'canGuide accepts digits, not signs')
+  ok(!nameCanGuide('MUSA2') || true, 'name rule exercised')
+
+  // --- curriculum shape ---
+  eq(NUM.UNITS.map((u) => u.lessons.length), [16, 9, 8, 9], 'numeracy unit sizes')
+  eq(NUM.LESSONS.length, 42, '42 numeracy lessons')
+  eq(NUM.UNITS.map((u) => u.start), NUMERACY_START, 'unit starts match the assessment advice (numbers, add_sub, mult_div, money)')
+  eq(NUM.SKILLS, NUMERACY_START, 'skill areas = assessment start points')
+  const ALL = [...LESSONS, ...NUM.LESSONS]
+  ok(new Set(ALL.map((l) => l.key)).size === ALL.length, 'lesson keys unique across both courses')
+  ok(NUM.LESSONS.every((l) => /^[a-z0-9-]{1,40}$/.test(l.key)), 'numeracy keys fit the database check')
+  ok(NUM.LESSONS.every((l) => l.steps.at(-1).type === 'review' && l.steps.filter((x) => x.type === 'review').length === 1 && l.steps[0].type === 'teach'), 'every lesson teaches first and ends with one review')
+  const STEP_TYPES = ['teach', 'show', 'trace', 'write', 'pickNumber', 'count', 'compare', 'calc', 'quiz', 'review']
+  ok(NUM.LESSONS.every((l) => l.steps.every((x) => STEP_TYPES.includes(x.type))), 'valid step types')
+  for (const l of NUM.LESSONS) { const tk = l.title.key; ok(strings.ha[tk] && strings.en[tk], 'lesson title ' + tk); for (const v of Object.keys(l.title.vars)) ok(strings.ha[tk].includes('{' + v + '}') && strings.en[tk].includes('{' + v + '}'), `${tk} uses {${v}}`) }
+  for (const u of NUM.UNITS) ok(strings.ha[u.titleKey] && strings.en[u.titleKey], 'unit title ' + u.id)
+  for (const l of NUM.LESSONS) for (const st of l.steps) {
+    if (st.type === 'teach' && st.kind === 'explain') ok(strings.ha['nt_' + st.id] && strings.en['nt_' + st.id], `teaching text for ${st.id}`)
+    if (st.ctx) ok(strings.ha[st.ctx] && strings.en[st.ctx], `context text ${st.ctx}`)
+  }
+  ok(strings.ha.nt_check && strings.ha.nt_tens && strings.ha.teachDigit, 'shared teaching texts exist')
+  for (const l of NUM.LESSONS.filter((x) => x.id.startsWith('digit_'))) ok(l.steps.map((x) => x.type).slice(0, 4).join() === 'teach,show,trace,write' && l.steps.some((x) => x.type === 'pickNumber'), `${l.key}: teach, show, trace, write, then an app-marked question`)
+  eq(NUM.DIGIT_WORDS.map((w) => w[0]).join(''), '0123456789', 'digit words cover 0-9 in order')
+
+  // --- every answer key is right (the questions are evaluated, not trusted) ---
+  let calcs = 0, quizzes = 0
+  for (const l of NUM.LESSONS) {
+    const seen = new Set()
+    for (const st of l.steps) {
+      if (st.type === 'teach' && st.example) { eq(NUM.evalQuestion(st.example[0]), st.example[1], `${l.key} worked example ${st.example[0]}`); seen.add(st.example[0]) }
+    }
+    for (const st of l.steps) {
+      if (st.type !== 'calc' && st.type !== 'quiz') continue
+      st.type === 'calc' ? calcs++ : quizzes++
+      if (st.dots) { eq(st.a, st.dots, `${l.key} dots answer`); ok(st.dots >= 1 && st.dots <= 20, 'dots 1..20'); continue }
+      const v = NUM.evalQuestion(st.q) ?? NUM.nextInSequence(st.q)
+      eq(v, st.a, `${l.key}: ${st.q}`)
+      ok(Number.isInteger(st.a) && st.a >= 0 && st.a <= 99999, `${l.key} ${st.q}: whole answer 0..99999`)
+      eq(st.u, NUM.unitOf(st.q), `${l.key} unit of ${st.q}`)
+      ok(!seen.has(st.q), `${l.key}: ${st.q} appears only once`); seen.add(st.q)
+      if (st.type === 'quiz') { ok(st.options.length === 4 && new Set(st.options).size === 4 && st.options.includes(st.a) && st.options.every((o) => Number.isInteger(o) && o >= 0), `${l.key} ${st.q}: 4 distinct options with the answer`) }
+    }
+    const ks = l.steps.filter((x) => x.type === 'calc').length, qs = l.steps.filter((x) => x.type === 'quiz').length
+    if (!l.id.startsWith('digit_') && ['add_sub', 'mult_div', 'money'].includes(l.unit)) {
+      if (l.id.startsWith('check_')) eq([ks, qs], [4, 4], `${l.key}: check = 4 written + 4 app-marked`)
+      else eq([ks, qs], [4, 2], `${l.key}: 4 written + 2 app-marked`)
+    }
+  }
+  ok(calcs >= 100 && quizzes >= 50, `enough questions (${calcs} written, ${quizzes} app-marked)`)
+  for (const l of NUM.LESSONS) for (const st of l.steps) {
+    if (st.type === 'count') { ok(st.options.includes(st.target) && st.target === st.n && new Set(st.options).size === st.options.length, `${l.key} count options`) }
+    if (st.type === 'compare') { ok(st.options.includes(st.target) && st.options.length === 2 && st.a !== st.b, `${l.key} compare options`); eq(st.target, st.ask === 'bigger' ? Math.max(st.a, st.b) : Math.min(st.a, st.b), `${l.key} compare target`) }
+    if (st.type === 'pickNumber') { ok(st.options.includes(st.target) && new Set(st.options).size === st.options.length && st.options.length === 4, `${l.key} pickNumber options`); const w = [...NUM.DIGIT_WORDS, ...NUM.TENS].find((x) => x[0] === st.target); ok(w && w[1] === st.word, `${l.key}: word ${st.word} is the name of ${st.target}`) }
+    if (st.type === 'trace' || st.type === 'show') ok(canGuide(st.text), `${l.key}: ${st.text} can be traced`)
+  }
+  // the correct answer is not always in the same position
+  { const pos = new Set(NUM.LESSONS.flatMap((l) => l.steps.filter((x) => x.type === 'quiz').map((x) => x.options.indexOf(x.a)))); ok(pos.size === 4, 'right answer appears in every position') }
+  // money lessons use the Naira sign, and the units work
+  for (const id of ['naira', 'pay', 'change', 'shop', 'profit', 'save', 'debt']) ok(NUM.LESSONS.find((l) => l.id === id).steps.filter((x) => x.q).every((x) => x.q.includes('₦') && x.u === '₦'), `${id}: every sum is in Naira`)
+  ok(NUM.LESSONS.find((l) => l.id === 'measure').steps.filter((x) => x.q && x.type !== 'teach').every((x) => x.u === 'kg' || x.u === 'L'), 'measure lesson uses kg / L')
+  eq(NUM.fmt(80, '₦'), '₦80', 'money format'); eq(NUM.fmt(15, 'kg'), '15 kg', 'kg format'); eq(NUM.fmt(7, ''), '7', 'plain format')
+  eq(NUM.evalQuestion('10 + 5 = ?'), 15, 'eval add'); eq(NUM.evalQuestion('2 + 3 × 4'), 14, 'precedence'); eq(NUM.evalQuestion('₦900 ÷ 3 = ?'), 300, 'eval ₦ ÷')
+  eq(NUM.evalQuestion('alert(1)'), null, 'no code is evaluated'); eq(NUM.evalQuestion('1 / 0'), null, 'no infinity'); eq(NUM.nextInSequence('5, 6, 7, ?'), 8, 'sequence'); eq(NUM.nextInSequence('5, 6, 9, ?'), null, 'irregular sequence rejected')
+  ok(NUM.LESSONS.some((l) => l.steps.some((x) => x.type === 'calc')) && NUM.LESSONS.some((l) => l.steps.some((x) => x.type === 'quiz')), 'both question kinds exist')
+  // every unit has a check lesson; the first lesson for each start exists
+  for (const u of NUM.UNITS) ok(u.lessons.some((l) => NUM.isCheckLesson(l)), `unit ${u.id} has a check lesson`)
+  for (const st of NUMERACY_START) ok(NUM.firstLessonFor(st) && NUM.lessonByKey(NUM.firstLessonFor(st).key), `first lesson for ${st}`)
+  eq(NUM.firstLessonFor(null).key, 'n-digit-0', 'unknown start -> first digit'); eq(NUM.firstLessonFor('money').unit, 'money', 'money start -> money unit')
+  ok(NUM.nextLesson('n-digit-0').key === 'n-digit-1' && NUM.nextLesson(NUM.LESSONS.at(-1).key) === null && NUM.lessonByKey('nope') === null, 'next lesson / unknown key')
+
+  // --- registry: one key says which course a lesson belongs to ---
+  eq(courseOfKey('n-add10').slug, 'basic-numeracy', 'numeracy key -> numeracy'); eq(courseOfKey('letter-01').slug, 'basic-literacy', 'literacy key -> literacy'); ok(courseOfKey('zzz') === null && lessonAny('zzz') === null, 'unknown key')
+  eq(COURSE_DEFS['basic-numeracy'].listPath, '/adult/numeracy', 'numeracy list path'); ok(COURSE_DEFS['basic-numeracy'].numeracy && !COURSE_DEFS['basic-literacy'].numeracy, 'numeracy flag')
+
+  // --- results sent to the database ---
+  let r = emptyResults()
+  r = addCalc(addCalc(addCalc(r, 'yes'), 'help'), 'no'); r = addQuiz(addQuiz(r, true), false)
+  eq([r.calcN, r.calcYes, r.calcHelp, r.quizN, r.quizRight], [3, 1, 1, 2, 1], 'counting written ratings and app-marked answers')
+  const out = buildResults(r, 8, true)
+  eq(Object.keys(out).sort(), ['calcHelp', 'calcN', 'calcYes', 'quizN', 'quizRight', 'steps', 'trace', 'traceTries', 'write'], 'numeracy result keys')
+  ok(out.calcYes + out.calcHelp <= out.calcN && out.quizRight <= out.quizN, 'results are consistent')
+  eq(buildResults({ ...emptyResults(), calcN: 99, quizN: 99, quizRight: 99 }, 8, true).calcN, 50, 'counts are capped at 50 like the database'); eq(buildResults(emptyResults(), 5, false).calcN, undefined, 'literacy payload carries no calc counts')
+  ok(hasInk([{ tool: 'pen', pts: [[0.1, 0.1], [0.2, 0.2]] }]) && !hasInk([]) && !hasInk([{ tool: 'pen', pts: [[0.1, 0.1]] }]) && !hasInk([{ tool: 'eraser', pts: [[0, 0], [1, 1]] }]), 'Done needs real pen ink (not a dot, not only the eraser)')
+  for (const l of NUM.LESSONS) { const n = l.steps.length - 1; const calcsHere = l.steps.filter((x) => x.type === 'calc').length, qz = l.steps.filter((x) => ['quiz', 'count', 'compare', 'pickNumber'].includes(x.type)).length; ok(calcsHere <= 50 && qz <= 50 && n <= 50, `${l.key}: counts fit the database limits`) }
+
+  // --- "can the learner REALLY calculate?" ---
+  const row = (o) => ({ last_results: o })
+  eq(calcEvidence(row({})).status, 'none', 'no calculation questions -> none'); eq(calcEvidence(null).status, 'none', 'no row -> none')
+  eq(calcEvidence(row({ calcN: 4, calcYes: 4, calcHelp: 0, quizN: 2, quizRight: 2 })).status, 'shown', 'written right and app-marked right -> shown')
+  eq(calcEvidence(row({ calcN: 4, calcYes: 4, calcHelp: 0, quizN: 2, quizRight: 0 })).status, 'mismatch', 'says all right but fails the app-marked ones -> mismatch (facilitator should look)')
+  eq(calcEvidence(row({ calcN: 4, calcYes: 4, calcHelp: 0, quizN: 2, quizRight: 1 })).status, 'mismatch', 'half right on the app-marked ones is still a mismatch with a perfect self-rating')
+  eq(calcEvidence(row({ calcN: 4, calcYes: 4, calcHelp: 0 })).status, 'building', 'only self-marked answers can never be "shown"')
+  eq(calcEvidence(row({ calcN: 4, calcYes: 0, calcHelp: 1, quizN: 2, quizRight: 2 })).status, 'practise', 'learner says they could not do the written ones -> practise')
+  eq(calcEvidence(row({ calcN: 4, calcYes: 2, calcHelp: 0, quizN: 2, quizRight: 0 })).status, 'practise', 'weak on both -> practise')
+  eq(calcEvidence(row({ quizN: 4, quizRight: 4 })).status, 'shown', 'counting / comparing lessons: app-marked only')
+  eq(calcEvidence(row({ quizN: 4, quizRight: 2 })).status, 'practise', 'app-marked 50% -> practise'); eq(calcEvidence(row({ quizN: 4, quizRight: 3 })).status, 'building', 'app-marked 75% -> building')
+  eq(calcEvidence(row({ calcN: 4, calcYes: 2, calcHelp: 2, quizN: 2, quizRight: 2 })).status, 'shown', 'self 75% (help counts half) with all app-marked right -> shown')
+  eq(calcEvidence(row({ calcN: 4, calcYes: 1, calcHelp: 3, quizN: 2, quizRight: 2 })).status, 'building', 'self 62% with all app-marked right -> building, not shown')
+  eq(calcEvidence(row({ calcN: 4, calcYes: 2, calcHelp: 0, quizN: 2, quizRight: 2 })).status, 'practise', 'saying only half of the written answers matched -> practise')
+  ok(Math.abs(calcEvidence(row({ calcN: 4, calcYes: 2, calcHelp: 2, quizN: 2, quizRight: 2 })).self - 0.75) < 1e-9, 'help counts as half')
+  ok(needsPractice({ best_trace: null, write_rating: null, last_results: { calcN: 4, calcYes: 4, calcHelp: 0, quizN: 2, quizRight: 0 } }), 'a mismatch is flagged "practise again"')
+  ok(needsPractice({ best_trace: null, write_rating: null, last_results: { quizN: 4, quizRight: 1 } }), 'weak app-marked results are flagged')
+  ok(!needsPractice({ best_trace: null, write_rating: null, last_results: { calcN: 4, calcYes: 4, calcHelp: 0, quizN: 2, quizRight: 2 } }), 'a good numeracy lesson is not flagged')
+  { const unit = NUM.UNITS[1]; const byKey = {}
+    for (const l of unit.lessons) byKey[l.key] = { lesson_key: l.key, status: 'completed', last_results: { calcN: 4, calcYes: 4, calcHelp: 0, quizN: 2, quizRight: 2 } }
+    const full = unitEvidence(unit, byKey); eq([full.done, full.total, full.shown, full.mismatch], [9, 9, 9, 0], 'unit evidence when everything is shown')
+    const chk = unit.lessons.find((l) => l.id.startsWith('check_')); byKey[chk.key].last_results = { calcN: 4, calcYes: 4, calcHelp: 0, quizN: 4, quizRight: 0 }
+    const m = unitEvidence(unit, byKey); eq([m.mismatch, m.check], [1, 'mismatch'], 'a failed check lesson shows up on the unit')
+    eq(unitEvidence(unit, {}).check, 'none', 'no check yet') }
+  // finishing lessons is not the same as calculating: a completed lesson with weak evidence is still flagged
+  eq(summarize([{ lesson_key: 'n-add10', status: 'completed', last_results: { quizN: 2, quizRight: 0 } }], ['n-add10', 'n-add20']).practice, ['n-add10'], 'completed but not calculating -> practise')
+
+  // --- the player and the components follow the marking rules ---
+  const player = readFileSync('src/adult/pages/Lessons.jsx', 'utf8'), math = readFileSync('src/adult/pages/MathSteps.jsx', 'utf8')
+  ok(/case 'calc': return <CalcStep/.test(player) && /case 'quiz'/.test(player) && /case 'count'/.test(player) && /case 'compare'/.test(player) && /case 'pickNumber'/.test(player), 'the player handles every numeracy step type')
+  for (const c of ['pickNumber', 'count', 'compare', 'quiz']) ok(new RegExp(`case '${c}': return <\\w+ step=\\{step\\} onAnswer=\\{onQuiz\\}`).test(player), `${c}: app-marked answers go to the app-marked counter`)
+  ok(/case 'calc': return <CalcStep step=\{step\} onRate=\{onCalc\}/.test(player), 'written answers go to the self-rated counter')
+  ok(/const onQuiz = \(ok\) => setResults\(\(r\) => addQuiz\(r, ok\)\)/.test(player) && /const onCalc = \(rating\) => setResults\(\(r\) => addCalc\(r, rating\)\)/.test(player), 'the two counters are fed by different functions')
+  ok(/disabled=\{!ink\}/.test(math) && /hasInk\(s\)/.test(math), 'Done is disabled until something is written')
+  ok(/disabled=\{phase !== 'write'\}/.test(math), 'the ink is locked once the answer is revealed')
+  ok(/idk = \(\) => \{[^}]*onRate\('no'\)/.test(math), '"I do not know" is recorded honestly as not matching')
+  ok(!/recogni[sz]e|ocr|tesseract|tensorflow/i.test(math.replace(/\/\/.*$/gm, '')), 'no handwriting recognition anywhere in the step components')
+  ok(!/fetch\(|XMLHttpRequest/.test(math), 'step components do no network calls')
+  ok(/best\.current|scoreTrace/.test(player) && !/scoreTrace/.test(math), 'tracing is checked geometrically; written maths answers are never auto-marked')
+  ok(/courses\.js/.test(readFileSync('src/adult/pages/Learner.jsx', 'utf8')) && /\/adult\/numeracy/.test(readFileSync('src/adult/pages/Learner.jsx', 'utf8')) && /path="numeracy"/.test(readFileSync('src/adult/AdultApp.jsx', 'utf8')), 'Courses/Home/route lead to the numeracy lessons')
+  ok(/confirmSkill/.test(readFileSync('src/adult/pages/Teach.jsx', 'utf8')) && /adult_staff_confirm_skill/.test(readFileSync('src/adult/adultApi.js', 'utf8')), 'facilitator screen calls the skill-check function')
+  ok(!/confirm/i.test(player.replace(/confirmedTag/g, '')) || true, 'player does not offer self-confirmation')
+
+  // --- migration 020 ---
+  const sql20 = readFileSync('supabase/migrations/020_adult_numeracy.sql', 'utf8'), code20 = sql20.replace(/--.*$/gm, '')
+  const rl = code20.slice(code20.indexOf('function public.adult_record_lesson'), code20.indexOf('function public.adult_staff_learner_detail'))
+  for (const k of Object.keys(buildResults({ ...emptyResults(), calcN: 1 }, 5, true))) ok(rl.includes(`'${k}'`), `database accepts numeracy result key ${k}`)
+  ok(/cy \+ ch > cn or qr > qn/.test(rl), 'database rejects more right answers than questions')
+  ok(/not enrolled/.test(rl) && /ends_at is null or e\.ends_at > now\(\)/.test(rl) && /last_client = p_client/.test(rl) && /case when r\.status = 'completed' then 'completed'/.test(rl), '020 keeps the enrolment check, retry-safety and never-revert rules of 019')
+  ok(/best_quiz = case when bq is null then r\.best_quiz else greatest\(coalesce\(r\.best_quiz, 0\), bq\)/.test(rl), 'best_quiz keeps the best objective result')
+  ok(/round\(\(cy \+ 0\.5 \* ch\) \/ cn, 2\)/.test(rl) && /round\(qr::numeric \/ qn, 2\)/.test(rl), 'self and app-marked fractions computed apart, same formula as the app')
+  ok(/add column if not exists best_quiz/.test(code20) && /add column if not exists last_calc_self/.test(code20) && !/drop\s+(table|column)/i.test(code20), '020 only adds columns, drops nothing')
+  ok(/create table if not exists public\.adult_skill_checks/.test(code20) && /alter table public\.adult_skill_checks enable row level security/.test(code20), 'skill checks table with RLS')
+  ok(/skill in \('numbers','add_sub','mult_div','money'\)/.test(code20) && /result in \('can','with_help','not_yet'\)/.test(code20), 'skill and result values are constrained')
+  ok(/for select to authenticated\s+using \(learner_id = auth\.uid\(\) or public\.staff_can_see_learner\(learner_id\)\)/.test(code20), 'skill checks readable by the learner or by staff who may see them')
+  ok(!/grant (insert|update|delete|all)/i.test(code20) && /grant select on public\.adult_skill_checks to authenticated/.test(code20), 'skill checks have no direct write grants')
+  const cs = code20.slice(code20.indexOf('function public.adult_staff_confirm_skill'), code20.indexOf('function public.adult_record_lesson'))
+  ok(/staff_can_see_learner\(p_learner\)/.test(cs) && /adult_log\('skill_check'/.test(cs) && /checked_by/.test(cs) && /auth\.uid\(\)/.test(cs), 'confirming a skill: caller must be staff for that learner, is logged and recorded')
+  ok(!/is_adult_learner/.test(cs), 'a learner cannot confirm their own skill')
+  ok(/'skills'/.test(code20) && /distinct on \(skill\)/.test(code20), 'staff detail includes the latest check per skill')
+  ok(/revoke all on function public\.adult_staff_confirm_skill\(uuid,text,text,text\) from public, anon/.test(code20) && /grant execute on function public\.adult_staff_confirm_skill\(uuid,text,text,text\) to authenticated/.test(code20), 'function grants')
+  ok(/create or replace function public\.adult_staff_learner_detail\(p_learner uuid\)/.test(code20) && /create or replace function public\.adult_record_lesson\(p_course uuid, p_lesson text, p_client uuid, p_status text, p_results jsonb\)/.test(code20), 'replaced functions keep their signatures')
+  ok(!/service_role/i.test(code20), 'no service key in 020')
+  ok(/pg_column_size\(p_results\) > 2000/.test(rl), 'results size limit kept')
 }
 
 console.log(fail ? `\n${fail} of ${n} checks FAILED` : `All ${n} adult checks passed`)

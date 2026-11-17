@@ -5,8 +5,8 @@ import { learnerApi } from '../adultApi.js'
 import HandwritingCanvas from '../components/HandwritingCanvas.jsx'
 import Assessment, { AssessmentResult } from './Assessment.jsx'
 import { LangSwitch } from './Public.jsx'
-import { useLiteracy } from './Lessons.jsx'
-import { LESSONS } from '../curriculum.js'
+import { useCourse } from './Lessons.jsx'
+import { COURSE_DEFS } from '../courses.js'
 import { summarize } from '../progress.js'
 
 // Signed-in shell: content + 4 large tabs (Home, Lessons, Write, Help).
@@ -51,23 +51,24 @@ export function Home() {
         ? <div className="ad-card"><p className="ad-big">{t('homeNoAssessment')}</p><button className="ad-btn primary" onClick={() => nav('/adult/assessment')}>{t('asStart')}</button></div>
         : <div className="ad-card"><h2>{t('yourStart')}</h2><AssessmentResult recommended={d.assessment.recommended} scores={d.assessment.scores} needsConfirmation={d.assessment.needs_confirmation} />
             <Link className="ad-btn primary" to="/adult/courses">{t('goLessons')}</Link></div>}
-      <LiteracyCard />
+      {[['basic-literacy', 'lessonsTitle', '/adult/learn'], ['basic-numeracy', 'numTitle', '/adult/numeracy']].map(([slug, titleKey, to]) => <CourseCard key={slug} slug={slug} titleKey={titleKey} to={to} />)}
       <p className="ad-note">{t('lessonsSoon')}</p>
     </main>
   )
 }
 
-function LiteracyCard() {
+function CourseCard({ slug, titleKey, to }) {
   const { t } = useAdult()
-  const d = useLiteracy()
+  const def = COURSE_DEFS[slug]
+  const d = useCourse(slug)
   if (d.loading || !d.enrolled) return null
-  const sum = summarize(d.rows, LESSONS.map((l) => l.key))
+  const sum = summarize(d.rows, def.lessons.map((l) => l.key))
   return (
     <div className="ad-card">
-      <h2>{t('lessonsTitle')}</h2>
+      <h2>{t(titleKey)}</h2>
       <p className="ad-big">{t('progressLine', { done: sum.completed, total: sum.total })}</p>
       <div className="ad-progress" aria-hidden="true"><i style={{ width: (sum.completed / sum.total) * 100 + '%' }} /></div>
-      <Link className="ad-btn primary" to="/adult/learn">{sum.completed === 0 ? t('startHere') : t('continueLesson')}</Link>
+      <Link className="ad-btn primary" to={to}>{sum.completed === 0 ? t('startHere') : t('continueLesson')}</Link>
     </div>
   )
 }
@@ -105,7 +106,7 @@ export function Courses() {
             <p>{c.description[lang] || c.description.en}</p>
             {c.status === 'coming_soon' && <p className="ad-note">{t('comingSoon')}</p>}
             {c.status === 'published' && !enrolled && <button className="ad-btn primary" disabled={busy === c.id} onClick={() => enroll(c.id)}>{c.is_free ? t('joinFree') : t('join')}</button>}
-            {c.status === 'published' && enrolled && <><p className="ad-ok">{t('joined')}</p>{c.kind === 'literacy' ? <Link className="ad-btn primary" to="/adult/learn">{t('openLessons')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>}
+            {c.status === 'published' && enrolled && <><p className="ad-ok">{t('joined')}</p>{c.kind === 'literacy' ? <Link className="ad-btn primary" to="/adult/learn">{t('openLessons')}</Link> : c.kind === 'numeracy' ? <Link className="ad-btn primary" to="/adult/numeracy">{t('openNumLessons')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>}
           </section>
         )
       })}

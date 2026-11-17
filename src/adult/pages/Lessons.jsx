@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAdult } from '../AdultAuth.jsx'
 import { learnerApi } from '../adultApi.js'
-import { COURSE_SLUG, LESSONS, UNITS, firstLessonFor, lessonByKey, nameCanGuide, nameForGuide, nextLesson } from '../curriculum.js'
+import { nameCanGuide, nameForGuide } from '../curriculum.js'
+import { COURSE_DEFS, courseOfKey, lessonAny } from '../courses.js'
+import { addCalc, addQuiz, buildResults, emptyResults } from '../lessonResults.js'
+import { unitEvidence } from '../progress.js'
+import { CalcStep, CompareStep, CountStep, NumTeach, PickNumberStep, QuizStep } from './MathSteps.jsx'
 import { layoutText, scoreTrace, suggestAspect } from '../guide.js'
 import { needsPractice, summarize } from '../progress.js'
 import { enqueue, flush } from '../progressQueue.js'
@@ -11,38 +15,46 @@ import HandwritingCanvas from '../components/HandwritingCanvas.jsx'
 import AdultAudio, { VoiceHint } from '../components/AdultAudio.jsx'
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : 'a' + Date.now() + Math.random().toString(16).slice(2))
-const KEYS = LESSONS.map((l) => l.key)
 
-// Loads the literacy course, whether the learner joined it, their progress, and their latest assessment.
-export function useLiteracy() {
+// Loads one course (by slug), whether the learner joined it, their progress in it, and the start advice from their latest assessment.
+export function useCourse(slug) {
+  const def = COURSE_DEFS[slug]
   const [d, setD] = useState({ loading: true, error: false, course: null, enrolled: false, rows: [], start: null })
   const load = useCallback(async () => {
     await flush((i) => learnerApi.recordLesson(i))                     // send anything that could not be saved earlier
     const [c, e, p, a] = await Promise.all([learnerApi.courses(), learnerApi.enrollments(), learnerApi.progress(), learnerApi.latestAssessment()])
-    const course = (c.data || []).find((x) => x.slug === COURSE_SLUG) || null
+    const course = (c.data || []).find((x) => x.slug === slug) || null
     setD({
       loading: false, error: Boolean(c.error || e.error || p.error), course, enrolled: Boolean(course && (e.data || []).some((x) => x.course_id === course.id)),
-      rows: (p.data || []).filter((r) => !course || r.course_id === course.id), start: ((a.data || [])[0]?.recommended?.literacy?.start) || null,
+      rows: (p.data || []).filter((r) => !course || r.course_id === course.id), start: ((a.data || [])[0]?.recommended?.[def.startField]?.start) || null,
     })
-  }, [])
+  }, [slug, def.startField])
   useEffect(() => { load() }, [load])
   return { ...d, reload: load }
 }
+export const useLiteracy = () => useCourse('basic-literacy')
 
 const lessonTitle = (t, l) => t(l.title.key, l.title.vars)
 
-export function LessonList() {
+export const LessonList = () => <CourseList slug="basic-literacy" />
+export const NumeracyList = () => <CourseList slug="basic-numeracy" />
+
+function CourseList({ slug }) {
   const { t } = useAdult()
-  const d = useLiteracy()
+  const def = COURSE_DEFS[slug]
+  const d = useCourse(slug)
   const [err, setErr] = useState('')
-  const sum = useMemo(() => summarize(d.rows, KEYS), [d.rows])
+  const [skills, setSkills] = useState([])
+  const KEYS = useMemo(() => def.lessons.map((l) => l.key), [def])
+  const sum = useMemo(() => summarize(d.rows, KEYS), [d.rows, KEYS])
+  useEffect(() => { if (def.numeracy) learnerApi.skills().then((r) => setSkills(r.data || [])) }, [def.numeracy])
   if (d.loading) return <div className="ad-page ad-center"><p className="ad-big">{t('wait')}</p></div>
   const join = async () => { setErr(''); const { error } = await learnerApi.enroll(d.course.id); if (error) setErr(t(error === 'network' ? 'errNetwork' : 'errGeneric')); else d.reload() }
   if (!d.course) return <main className="ad-page"><p className="ad-big">{t('errGeneric')}</p></main>
   if (!d.enrolled) return (
     <main className="ad-page"><h1>{t('lessonsTitle')}</h1><p className="ad-big">{t('notEnrolled')}</p>
       {err && <p className="ad-error">{err}</p>}<button className="ad-btn primary" onClick={join}>{t('joinFree')}</button></main>)
-  const startKey = sum.completed === 0 ? firstLessonFor(d.start).key : sum.next
+  const startKey = sum.completed === 0 ? def.first(d.start).key : sum.next
   return (
     <main className="ad-page">
       <h1>{t('lessonsTitle')}</h1>
@@ -54,9 +66,13 @@ export function LessonList() {
         {sum.practice.length > 0 && <p className="ad-note">{t('practiceCount', { n: sum.practice.length })}</p>}
         {startKey && <Link className="ad-btn primary" to={'/adult/learn/' + startKey}>{sum.completed === 0 ? t('startHere') : t('continueLesson')}</Link>}
       </div>
-      {UNITS.map((u) => (
+      {def.units.map((u) => {
+        const ue = def.numeracy ? unitEvidence(u, sum.byKey) : null
+        const confirmed = def.numeracy && skills.find((x) => x.skill === u.id && x.result === 'can')
+        return (
         <section key={u.id}>
           <h2>{t(u.titleKey)}</h2>
+          {ue && <p className="ad-note">{t('unitProgress', { done: ue.done, total: ue.total })}{confirmed ? ' · ' + t('confirmedTag') : ''}</p>}
           <ul className="ad-lessons">
             {u.lessons.map((l) => {
               const r = sum.byKey[l.key]; const done = r?.status === 'completed'
@@ -70,7 +86,7 @@ export function LessonList() {
                 </li>)
             })}
           </ul>
-        </section>))}
+        </section>)})}
     </main>
   )
 }
@@ -177,7 +193,7 @@ function ChoiceStep({ kind, prompt, big, options, target, answerLabel, extra, on
   </>)
 }
 
-function ReviewStep({ results, saveState, next, onList }) {
+function ReviewStep({ results, saveState, next, onList, numeracy }) {
   const { t } = useAdult()
   const nav = useNavigate()
   const traced = results.trace != null
@@ -187,6 +203,9 @@ function ReviewStep({ results, saveState, next, onList }) {
       {traced && <p className="ad-big">{results.trace >= 0.68 ? t('reviewTraceGood') : t('reviewTraceMore')}</p>}
       {results.write && <p className="ad-big">{t('reviewWrite_' + results.write)}</p>}
       {(results.match || results.find) && <p className="ad-big">{[results.match, results.find].filter(Boolean).every((x) => x === 'yes') ? t('reviewChoicesOk') : t('reviewChoicesMore')}</p>}
+      {numeracy && results.calcN > 0 && <p className="ad-big">{t('reviewCalc', { n: results.calcN, yes: results.calcYes })}</p>}
+      {numeracy && results.quizN > 0 && <p className="ad-big">{t('reviewQuiz', { n: results.quizN, right: results.quizRight })}</p>}
+      {numeracy && results.calcN > 0 && <p className="ad-note">{t('reviewSelfNote')}</p>}
       {saveState === 'saving' && <p className="ad-note">{t('saving')}</p>}
       {saveState === 'queued' && <p className="ad-banner">{t('savedLocal')}</p>}
       {saveState === 'denied' && <p className="ad-error">{t('notEnrolled')}</p>}
@@ -201,11 +220,12 @@ function ReviewStep({ results, saveState, next, onList }) {
 
 export function LessonPlayer() {
   const { key } = useParams()
-  const lesson = lessonByKey(key)
+  const lesson = lessonAny(key)
+  const def = courseOfKey(key) || COURSE_DEFS['basic-literacy']
   const nav = useNavigate()
   const { t, profile } = useAdult()
   useVoices()
-  const d = useLiteracy()
+  const d = useCourse(def.slug)
   const name = nameForGuide(profile?.full_name)
   const steps = useMemo(() => {
     if (!lesson) return []
@@ -214,17 +234,19 @@ export function LessonPlayer() {
       .map((s) => (s.text === '@NAME' ? { ...s, text: name } : s))
   }, [lesson, name])
   const [idx, setIdx] = useState(0)
-  const [results, setResults] = useState({ trace: null, write: null, match: null, find: null })
+  const [results, setResults] = useState(emptyResults)
   const [client] = useState(newId)
   const [saveState, setSaveState] = useState('idle')
   const saved = useRef(false)
   const merge = (patch) => setResults((r) => ({ ...r, ...patch }))
+  const onQuiz = (ok) => setResults((r) => addQuiz(r, ok))
+  const onCalc = (rating) => setResults((r) => addCalc(r, rating))
   const step = steps[idx]
 
   useEffect(() => {                                       // reaching the review step saves the run, exactly once
     if (!step || step.type !== 'review' || saved.current || !d.course || d.loading) return
     saved.current = true; setSaveState('saving')
-    const payload = { course: d.course.id, lesson: lesson.key, client, status: 'completed', results: { trace: results.trace, write: results.write, match: results.match, find: results.find, steps: steps.length - 1, traceTries: results.traceTries || 0 } }
+    const payload = { course: d.course.id, lesson: lesson.key, client, status: 'completed', results: buildResults(results, steps.length - 1, def.numeracy) }
     learnerApi.recordLesson(payload).then(({ error }) => {
       if (!error) setSaveState('saved')
       else if (error === 'denied') setSaveState('denied')
@@ -234,13 +256,18 @@ export function LessonPlayer() {
 
   if (!lesson) return <Navigate to="/adult/learn" replace />
   if (d.loading) return <div className="ad-page ad-center"><p className="ad-big">{t('wait')}</p></div>
-  if (!d.enrolled) return <main className="ad-page"><p className="ad-big">{t('notEnrolled')}</p><Link className="ad-btn primary" to="/adult/learn">{t('toList')}</Link></main>
+  if (!d.enrolled) return <main className="ad-page"><p className="ad-big">{t('notEnrolled')}</p><Link className="ad-btn primary" to={def.listPath}>{t('toList')}</Link></main>
   const go = () => setIdx((i) => Math.min(i + 1, steps.length - 1))
-  const nextL = nextLesson(lesson.key)
+  const nextL = def.next(lesson.key)
   const voice = hasVoice('ha')
   const body = (() => {
     switch (step.type) {
-      case 'teach': return <TeachStep step={step} name={name} onNext={go} />
+      case 'teach': return def.numeracy ? <NumTeach step={step} onNext={go} /> : <TeachStep step={step} name={name} onNext={go} />
+      case 'pickNumber': return <PickNumberStep step={step} onAnswer={onQuiz} onNext={go} />
+      case 'count': return <CountStep step={step} onAnswer={onQuiz} onNext={go} />
+      case 'compare': return <CompareStep step={step} onAnswer={onQuiz} onNext={go} />
+      case 'quiz': return <QuizStep step={step} onAnswer={onQuiz} onNext={go} />
+      case 'calc': return <CalcStep step={step} onRate={onCalc} onNext={go} />
       case 'show': return <ShowStep text={step.text} onNext={go} />
       case 'trace': return <TraceStep text={step.text} onResult={merge} onNext={go} />
       case 'write': return <WriteStep text={step.text} onResult={merge} onNext={go} />
@@ -250,7 +277,7 @@ export function LessonPlayer() {
         if (step.kind === 'hasLetter') return <ChoiceStep kind="word" field="find" prompt={t('findHasLetter', { upper: step.letter })} big={<p className="ad-giant small">{step.letter}</p>} options={step.options} target={step.target} onResult={merge} onNext={go} />
         return <ChoiceStep kind="word" field="find" prompt={t(hear ? 'findHear' : 'findSame')} big={hear ? null : <p className="ad-giant small">{step.target}</p>} extra={hear ? <AdultAudio text={step.target} lang="ha" big /> : null} options={step.options} target={step.target} onResult={merge} onNext={go} />
       }
-      default: return <ReviewStep results={results} saveState={saveState} next={nextL} onList={() => nav('/adult/learn')} />
+      default: return <ReviewStep results={results} saveState={saveState} next={nextL} onList={() => nav(def.listPath)} numeracy={def.numeracy} />
     }
   })()
   return (
@@ -259,7 +286,7 @@ export function LessonPlayer() {
       <p className="ad-note">{lessonTitle(t, lesson)}</p>
       {body}
       {idx > 0 && step.type !== 'review' && <button className="ad-link" onClick={() => setIdx(idx - 1)}>{t('back')}</button>}
-      {step.type !== 'review' && <Link className="ad-link" to="/adult/learn">{t('toList')}</Link>}
+      {step.type !== 'review' && <Link className="ad-link" to={def.listPath}>{t('toList')}</Link>}
     </main>
   )
 }

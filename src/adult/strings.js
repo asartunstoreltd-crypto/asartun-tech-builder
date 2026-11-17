@@ -1,6 +1,8 @@
 // All adult-module text, Hausa first then English. One entry per key, so a key can never exist in only one language.
 // STATUS: the Hausa below is a working DRAFT written for review. A native Hausa speaker must check and correct it
 // (and the same person should record the audio) BEFORE any learner uses it.
+import { N } from './numeracyStrings.js'
+
 const S = {
   brand: ['ASARTUN ADULT LEARNING', 'ASARTUN ADULT LEARNING'],
   slogan: ['Koyi a Lokacinka, Gina Makomarka.', 'Learn at Your Own Pace. Build Your Future.'],
@@ -106,5 +108,6 @@ const S = {
   voiceMissing: ['Wayarka ba ta iya magana da Hausa. Don jin darussa, ka saka muryar Hausa a saitunan wayarka (Text-to-speech). Idan babu, ka nemi malami ya taimaka.', 'Your phone cannot speak Hausa. To hear the lessons, add a Hausa voice in your phone’s text-to-speech settings. If there is none, ask your facilitator for help.'],
   lessonsHeading: ['Darussa', 'Lessons'], needsPracticeLabel: ['yana buƙatar ƙarin aiki', 'needs more practice'], traceLabel: ['bin layi {pct}%', 'tracing {pct}%'], noProgress: ['Babu darasin da aka fara.', 'No lessons started.'],
 }
+Object.assign(S, N)                         // numeracy course text (Phase 5)
 export const strings = { ha: {}, en: {} }
 for (const k in S) { strings.ha[k] = S[k][0]; strings.en[k] = S[k][1] }
