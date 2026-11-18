@@ -122,7 +122,7 @@ for (const k of used) ok(kha.includes(k), `string key used in code but missing: 
 
 // ---------- SQL structure ----------
 const sqlDir = 'supabase/migrations'
-const sql = readdirSync(sqlDir).filter((f) => /^0(1[789]|2[01])_adult/.test(f)).map((f) => readFileSync(join(sqlDir, f), 'utf8')).join('\n')
+const sql = readdirSync(sqlDir).filter((f) => /^0(1[789]|2[012])_adult/.test(f)).map((f) => readFileSync(join(sqlDir, f), 'utf8')).join('\n')
 const tables = [...sql.matchAll(/create table if not exists public\.(adult_[a-z_]+)/g)].map((m) => m[1])
 ok(tables.length >= 10, 'found adult tables: ' + tables.length)
 for (const t of tables) ok(new RegExp(`alter table public\\.${t}\\s+enable row level security`).test(sql), `RLS enabled on ${t}`)
@@ -407,6 +407,260 @@ ok(/phone ~ '\^\\\+\[0-9\]\{10,15\}\$'/.test(sql), 'database re-checks phone for
   const tw = readFileSync('src/adult/pages/TeachWork.jsx', 'utf8')
   ok(/keep: \['pen', 'highlight'\]/.test(tw) && /\.\.\.prior, \.\.\.marks/.test(tw), 'teacher marks (pencil and highlighter) are saved and earlier marks are kept')
   ok(/saved/.test(tw) && /askRedo/.test(tw) && /save\(true\)/.test(tw) && /save\(false\)/.test(tw), 'mark as reviewed or ask for another attempt')
+}
+
+
+// ================================================================= PHASE 7: attendance, reports, support rules, schedule
+import * as R from '../src/adult/reports.js'
+{
+  const NOW = new Date('2026-11-18T10:00:00Z')            // a Wednesday
+  const near = (a, b, m) => ok(typeof a === 'number' && Math.abs(a - b) < 1e-9, `${m}: got ${a} expected ${b}`)
+  const row = (k, o = {}) => ({ k, s: 'completed', a: 1, bt: null, bc: null, wr: null, r: {}, c: '2026-11-10T09:00:00Z', u: '2026-11-10T09:00:00Z', ...o })
+  const L = (o = {}) => ({ id: 'x', name: 'Aisha', joined: '2026-11-10T00:00:00Z', prog: [], att: [], subs: [], ...o })
+  const ctx = (assignments = []) => ({ now: NOW, assignments })
+  const flags = (l, c = ctx()) => R.supportFlags(l, c).flags
+  const codes = (l, c = ctx()) => flags(l, c).map((f) => f.code)
+  const seen = new Set()
+  const codesSeen = (l, c) => { const f = flags(l, c); f.forEach((x) => seen.add(x.code)); return f.map((x) => x.code) }
+  const A = (list) => list.map(([d, s]) => ({ d, s }))
+  const litKeys = LESSONS.filter((l) => l.unit === 'letters').map((l) => l.key)
+
+  // --- which lessons are "applying"
+  ok(R.lessonInfo('letter-01').course === 'literacy' && !R.lessonInfo('letter-01').applied, 'letters are literacy, not applied')
+  ok(R.lessonInfo('message-1').applied, 'messages count as applying')
+  ok(R.lessonInfo('n-naira').applied && R.lessonInfo('n-measure-kg').applied && R.lessonInfo('n-profit').applied, 'money, measuring and profit lessons count as applying')
+  ok(R.lessonInfo('n-add-5').course === 'numeracy' && !R.lessonInfo('n-add-5').applied, 'adding is counting, not applied')
+  eq(R.lessonInfo('nope'), null, 'unknown lesson key')
+  eq([...R.APPLIED_KEYS].sort(), [...num.LESSONS.filter((l) => ['money', 'measure', 'finance'].includes(l.unit)).map((l) => l.key), ...MESSAGES.map((_, i) => 'message-' + (i + 1))].sort(), 'applied lessons are exactly money+measure+finance+messages')
+  ok(LESSONS.every((l) => R.lessonInfo(l.key)) && num.LESSONS.every((l) => R.lessonInfo(l.key)), 'every lesson of both courses is classified')
+
+  // --- skill areas pool CHECKS, not lessons
+  {
+    const a = R.skillAreas([row('letter-01', { bt: 0.9, wr: 'yes', r: { match: 'yes', find: 'no' } })])
+    eq([a.write.items, a.write.good], [2, 2], 'passed trace + good writing = 2 of 2')
+    eq([a.read.items, a.read.good], [2, 1], 'match right, find wrong = 1 of 2')
+    eq([a.count.items, a.apply.items], [0, 0], 'a literacy lesson gives no counting evidence')
+    const b = R.skillAreas([row('letter-01', { bt: 0, wr: 'help' })])
+    eq([b.write.items, b.write.good], [2, 0.5], 'failed trace = 0, "help" rating = half')
+    eq(R.skillAreas([row('letter-01', { bt: 0.5 })]).write.good, 0, 'a trace of 50% did not pass the check (needs 68%), so it counts as not yet'); eq(R.skillAreas([row('letter-01', { bt: TRACE_OK })]).write.good, 1, 'exactly the pass mark passes')
+    const c = R.skillAreas([row('n-add-5', { r: { calcYes: 2, calcHelp: 1, calcNo: 0, pickRight: 1, pickTotal: 1 } })])
+    eq([c.count.items, c.count.good], [4, 3.5], 'written maths (help = half) + multiple choice pooled')
+    eq(c.apply.items, 0, 'adding is not counted as applying')
+    const d = R.skillAreas([row('n-naira', { r: { calcYes: 3, calcNo: 1, pickRight: 1, pickTotal: 1 } })])
+    eq([d.apply.items, d.apply.good, d.count.items], [5, 4, 0], 'money lesson counts as applying only')
+    const e = R.skillAreas([row('message-1', { r: { match: 'yes' } })])
+    eq([e.apply.items, e.apply.good, e.read.items], [1, 1, 0], 'reading a practical message counts as applying')
+    const f = R.skillAreas([row('n-digit-3', { bt: 0.9, wr: 'yes' })])
+    eq([f.write.items, f.write.good], [2, 2], 'writing digits counts as writing')
+    eq(R.skillAreas([row('zzz', { bt: 1, wr: 'yes' })]).write.items, 0, 'unknown key is never counted')
+    eq(R.skillAreas([]).read.level, 'none', 'no evidence = none, not weak')
+    eq(R.skillAreas([row('letter-01', { r: { match: 'no', find: 'no' } })]).read.level, 'early', 'fewer than 4 checks = early, even if all wrong')
+    const lvl = (good, items) => R.skillAreas([row('n-add-5', { r: { calcYes: good, calcNo: items - good } })]).count.level
+    eq(lvl(8, 10), 'secure', '80% is secure'); eq(lvl(7, 10), 'developing', '70% developing'); eq(lvl(6, 10), 'developing', '60% developing'); eq(lvl(5, 10), 'building', '50% building'); eq(lvl(3, 3), 'early', '3 of 3 still early')
+    eq(lvl(4, 4), 'secure', 'exactly the minimum evidence is judged')
+  }
+
+  // --- attendance
+  {
+    const a = R.attendanceStats(A([['2026-11-09', 'present'], ['2026-11-02', 'late'], ['2026-11-16', 'absent'], ['2026-11-12', 'bogus']]))
+    eq([a.marked, a.present, a.late, a.absent, a.attended], [3, 1, 1, 1, 2], 'late counts as attending; junk ignored')
+    near(a.rate, 2 / 3, 'rate'); eq(a.absentStreak, 1, 'streak counted from the latest, input order irrelevant')
+    eq(R.attendanceStats([]).rate, null, 'no marks = no rate (not 0%)')
+    eq(R.attendanceStats(A([['2026-11-02', 'absent'], ['2026-11-09', 'absent'], ['2026-11-16', 'absent']])).absentStreak, 3, 'streak of 3')
+    eq(R.attendanceStats(A([['2026-11-02', 'absent'], ['2026-11-09', 'present']])).absentStreak, 0, 'a later presence ends the streak')
+  }
+
+  // --- assignments
+  {
+    const asg = [{ id: 'a1', due: '2026-11-01T00:00:00Z', max: 10 }, { id: 'a2', due: '2026-11-05T00:00:00Z', max: 20 }, { id: 'a3', due: '2026-12-01T00:00:00Z', max: 10 }, { id: 'a4', due: null, max: 10 }]
+    const w = R.workStats([{ a: 'a1', st: 'reviewed', score: 5 }, { a: 'a2', st: 'submitted', score: null }], asg, NOW)
+    eq([w.given, w.sent, w.marked, w.waiting, w.redo], [4, 2, 1, 1, 0], 'counts')
+    near(w.avgShare, 0.5, 'share of full marks'); eq(w.overdueUnsent, 0, 'sent work is not overdue; future and undated are not overdue')
+    eq(R.workStats([], asg, NOW).overdueUnsent, 2, 'two assignments past due with nothing sent')
+    near(R.workStats([{ a: 'a2', st: 'reviewed', score: 99 }], asg, NOW).avgShare, 1, 'share is capped at full marks')
+    eq(R.workStats([{ a: 'a1', st: 'redo', score: 3 }], asg, NOW).marked, 0, 'a "try again" attempt is not a mark')
+    eq(R.workStats([], [], NOW).avgShare, null, 'no marked work = no average')
+  }
+
+  // --- the support rules: each one fires AT its threshold and not below it
+  {
+    ok(codes(L({ att: A([['2026-11-02', 'absent'], ['2026-11-09', 'absent']]) })).includes('absentStreak') && !codes(L({ att: A([['2026-11-02', 'absent'], ['2026-11-09', 'absent']]) })).includes('attLow'), '2 sessions: streak yes, rate rule needs 3 marked sessions')
+    eq(codesSeen(L({ att: A([['2026-11-02', 'present'], ['2026-11-09', 'absent'], ['2026-11-16', 'absent']]) })), ['attLow', 'absentStreak'], '1 of 3 came')
+    eq(flags(L({ att: A([['2026-11-02', 'absent'], ['2026-11-09', 'present'], ['2026-11-16', 'absent']]) }))[0].level, 'high', '1 of 3 (33%) is serious')
+    eq(codes(L({ att: A([['2026-10-05', 'absent'], ['2026-10-12', 'absent'], ['2026-10-19', 'present'], ['2026-10-26', 'present'], ['2026-11-02', 'present']]) })), [], '3 of 5 = 60% exactly is NOT flagged')
+    { const rows = []; for (let i = 0; i < 20; i++) rows.push([`2026-0${1 + Math.floor(i / 9)}-${String(1 + (i % 9) * 3).padStart(2, '0')}`, i < 9 ? 'absent' : 'present'])   // 9 absent first, then 11 present: 55%
+      const f55 = flags(L({ att: A(rows) })); eq([f55.length, f55[0]?.code, f55[0]?.level], [1, 'attLow', 'watch'], '11 of 20 = 55% is below 60%: watch (not serious)') }
+    const f40 = flags(L({ att: A([['2026-10-05', 'absent'], ['2026-10-12', 'absent'], ['2026-10-19', 'absent'], ['2026-10-26', 'present'], ['2026-11-02', 'present']]) }))
+    eq([f40.length, f40[0].code, f40[0].level], [1, 'attLow', 'watch'], '2 of 5 = 40% exactly is a watch, not serious')
+    eq(flags(L({ att: A([['2026-10-05', 'absent'], ['2026-10-12', 'absent'], ['2026-10-19', 'absent'], ['2026-10-26', 'absent'], ['2026-11-02', 'present']]) }))[0].level, 'high', '1 of 5 = 20% serious')
+    eq(codes(L({ att: A([['2026-11-02', 'late'], ['2026-11-09', 'late'], ['2026-11-16', 'absent']]) })), [], 'late counts as coming (2 of 3)')
+    // inactivity
+    eq(codes(L({ joined: '2026-11-10T00:00:00Z' })), [], 'joined 8 days ago: not yet judged')
+    eq(codesSeen(L({ joined: '2026-10-29T00:00:00Z' })), ['neverStarted'], 'in the class 20 days, never started')
+    eq(flags(L({ joined: '2026-10-29T00:00:00Z' }))[0].level, 'watch', '20 idle days is a watch'); eq(flags(L({ joined: '2026-10-09T00:00:00Z' }))[0].level, 'high', '40 idle days is serious')
+    eq(codes(L({ joined: '2026-10-01T00:00:00Z', prog: [row('letter-01', { u: '2026-11-13T09:00:00Z' })] })), [], 'active 5 days ago: fine')
+    eq(codesSeen(L({ joined: '2026-10-01T00:00:00Z', prog: [row('letter-01', { u: '2026-11-04T10:00:00Z' })] })), ['inactive'], 'exactly 14 days idle is flagged')
+    eq(codes(L({ joined: '2026-10-01T00:00:00Z', prog: [row('letter-01', { u: '2026-11-04T10:00:01Z' })] })), [], '13.99 days idle is not')
+    eq(flags(L({ joined: '2026-10-01T00:00:00Z', prog: [row('letter-01', { u: '2026-10-21T10:00:00Z' })] }))[0].level, 'high', '28 days idle is serious')
+    eq(flags(L({ joined: '2026-10-01T00:00:00Z', prog: [row('letter-01', { u: '2026-10-22T10:00:00Z' })] }))[0].level, 'watch', '27 days idle is a watch')
+    // lessons that need practising again (bt 0 fails the tracing check)
+    const bad = (i) => row(litKeys[i], { bt: 0 }), good = (i) => row(litKeys[i], { bt: 1, wr: 'yes', r: { match: 'yes' } })
+    eq(codes(L({ prog: [bad(0), bad(1)] })), [], '2 finished lessons: too few to judge')
+    eq(codesSeen(L({ prog: [bad(0), bad(1), bad(2)] })), ['practice'], '3 of 3 need practice')
+    eq(codes(L({ prog: [bad(0), bad(1), good(2), good(3), good(4), good(5), good(6), good(7), good(8), good(9)] })), [], '2 of 10 is below both limits')
+    eq(codes(L({ prog: [bad(0), bad(1), bad(2), good(3), good(4), good(5), good(6), good(7), good(8), good(9)] })), ['practice'], '3 of 10 reaches the count limit')
+    eq(codes(L({ prog: [bad(0), bad(1), good(2), good(3), good(4)] })), ['practice'], '2 of 5 = 40% reaches the share limit')
+    eq(codes(L({ prog: [row(litKeys[0], { bt: 0, s: 'started' }), row(litKeys[1], { bt: 0, s: 'started' }), row(litKeys[2], { bt: 0, s: 'started' })] })), [], 'lessons not finished are not "finished but weak"')
+    // written maths and multiple choice
+    const calc = (y, h, no) => L({ prog: [row('n-add-5', { r: { calcYes: y, calcHelp: h, calcNo: no } })] })
+    eq(codes(calc(1, 0, 4)), [], '5 written answers: too few to judge')
+    eq(codes(calc(4, 0, 2)), [], '6 answers, 67%: fine')
+    eq(codesSeen(calc(3, 0, 3)), ['mathsLow'], '6 answers, 50%: watch'); eq(flags(calc(3, 0, 3))[0].level, 'watch', '50% is a watch')
+    eq(flags(calc(2, 0, 4))[0].level, 'high', '33% is serious'); eq(codes(calc(2, 2, 2)), ['mathsLow'], '"not sure" counts half: 2 yes + 2 not-sure + 2 different = 3 of 6 = 50%'); eq(codes(calc(3, 2, 1)), [], '3 yes + 2 not-sure of 6 = 67%: fine')
+    const pick = (r, t2) => L({ prog: [row('n-add-5', { r: { pickRight: r, pickTotal: t2 } })] })
+    eq(codes(pick(0, 3)), [], '3 questions: too few'); eq(codesSeen(pick(2, 4)), ['choiceLow'], '4 questions, 50%: watch'); eq(codes(pick(3, 4)), [], '75%: fine'); eq(flags(pick(1, 4))[0].level, 'high', '25% serious')
+    // assignments
+    const asg = [{ id: 'a1', due: '2026-11-01T00:00:00Z', max: 10 }, { id: 'a2', due: '2026-11-05T00:00:00Z', max: 10 }, { id: 'a3', due: '2026-12-01T00:00:00Z', max: 10 }]
+    const rev = (a, sc) => ({ a, st: 'reviewed', score: sc, rv: '2026-11-10T00:00:00Z' })
+    eq(codesSeen(L({ subs: [rev('a1', 4), rev('a2', 4)] }), ctx(asg)), ['workLow'], 'two marks averaging 40%')
+    eq(codes(L({ subs: [rev('a1', 2)] }), ctx(asg)), [], 'one low mark alone is not judged (and one of two overdue is sent)')
+    ok(!codes(L({ subs: [rev('a1', 2)] }), ctx(asg)).includes('workLow'), 'a single marked assignment never triggers the average rule')
+    ok(!codes(L({ subs: [rev('a1', 5), rev('a2', 5)] }), ctx(asg)).includes('workLow'), 'exactly 50% is not flagged')
+    eq(codesSeen(L({}), ctx(asg)), ['workOverdue'], 'two assignments overdue, nothing sent'); ok(!codes(L({ subs: [{ a: 'a1', st: 'submitted' }] }), ctx(asg)).includes('workOverdue'), 'one of two sent: only 1 overdue')
+    // overall status
+    eq(R.supportFlags(L(), ctx()).status, 'nodata', 'nothing recorded = "not enough information", never "fine"')
+    eq(R.supportFlags(L({ att: A([['2026-11-16', 'present']]) }), ctx()).status, 'ok', 'some evidence, no flags = on track')
+    eq(R.supportFlags(L({ att: A([['2026-11-02', 'present'], ['2026-11-09', 'absent'], ['2026-11-16', 'absent']]), subs: [] }), ctx()).status, 'support', 'serious flag = needs support')
+    eq(R.supportFlags(L({ att: A([['2026-11-09', 'absent'], ['2026-11-16', 'absent']]) }), ctx()).status, 'watch', 'one ordinary flag = keep an eye')
+    eq(R.supportFlags(L({ att: A([['2026-11-09', 'absent'], ['2026-11-16', 'absent']]) }), ctx(asg)).status, 'support', 'two ordinary flags = needs support')
+    ok(flags(L({ att: A([['2026-11-02', 'present'], ['2026-11-09', 'absent'], ['2026-11-16', 'absent']]) })).every((f) => f.code && ['watch', 'high'].includes(f.level) && f.vars && typeof f.vars === 'object'), 'every flag has a code, a level and the numbers behind it')
+    // every flag code the rules can produce has a sentence on screen
+    const tr = readFileSync('src/adult/pages/TeachReports.jsx', 'utf8')
+    const keyMap = Object.fromEntries([...tr.match(/export const FLAG_KEY = \{([^}]*)\}/)[1].matchAll(/(\w+): '(\w+)'/g)].map((m) => [m[1], m[2]]))
+    for (const c of ['attLow', 'absentStreak', 'inactive', 'neverStarted', 'practice', 'mathsLow', 'choiceLow', 'workLow', 'workOverdue']) { ok(seen.has(c), `rule ${c} was triggered by a test`); ok(keyMap[c] && strings.en[keyMap[c]], `rule ${c} has a sentence`) }
+    for (const k of Object.values(keyMap)) { const v = (x) => (x.match(/\{[a-z]+\}/g) || []).sort().join(); ok(v(strings.en[k]).length > 0, `${k} shows its numbers`) }
+    const src = readFileSync('src/adult/reports.js', 'utf8')
+    ok([...src.matchAll(/code: '(\w+)'|'(inactive)' : '(neverStarted)'/g)].length >= 8, 'flag codes found in the rules')
+    for (const th of ['ATT_LOW', 'ATT_VERY_LOW', 'ATT_MIN_SESSIONS', 'ABSENT_STREAK', 'INACTIVE_DAYS', 'INACTIVE_HIGH', 'PRACTICE_MIN_DONE', 'PRACTICE_SHARE', 'PRACTICE_COUNT', 'MATHS_MIN_ITEMS', 'MATHS_LOW', 'MATHS_VERY_LOW', 'MC_MIN_ITEMS', 'WORK_MIN_MARKED', 'WORK_LOW', 'WORK_OVERDUE']) ok(tr.includes('T.' + th), `the rules panel shows the real threshold ${th}`)
+  }
+
+  // --- over time
+  {
+    eq(R.weekStart('2026-11-15T23:59:59Z'), '2026-11-09', 'Sunday belongs to the week that started on Monday 9th'); eq(R.weekStart('2026-11-16T00:00:00Z'), '2026-11-16', 'Monday starts a week'); eq(R.weekStart('2026-11-18'), '2026-11-16', 'Wednesday')
+    const w = R.weeklySeries(L({ prog: [row('letter-01', { c: '2026-11-17T08:00:00Z' }), row('letter-02', { c: '2026-11-10T08:00:00Z' }), row('letter-03', { c: '2026-11-11T08:00:00Z' }), row('letter-04', { c: '2026-08-01T08:00:00Z' }), row('letter-05', { s: 'started', c: null })], att: A([['2026-11-16', 'present'], ['2026-11-15', 'absent'], ['2026-11-09', 'late']]), subs: [{ a: 'a', st: 'reviewed', score: 5, rv: '2026-11-17T10:00:00Z' }, { a: 'b', st: 'submitted', rv: null }] }), NOW)
+    eq(w.length, 8, '8 weeks'); eq([w[0].week, w[7].week], ['2026-09-28', '2026-11-16'], 'oldest first, ends this week')
+    eq([w[7].completed, w[6].completed], [1, 2], 'completions bucketed by week; the August one is outside the window; a started lesson is not a completion')
+    eq([w[7].marked, w[7].attended, w[6].marked, w[6].attended], [1, 1, 2, 1], 'attendance bucketed by week'); eq([w[7].work, w[6].work], [1, 0], 'marked work bucketed by the day it was marked')
+  }
+
+  // --- a class
+  {
+    const strong = L({ id: 's', name: 'Zainab', prog: [row('letter-01', { bt: 1, wr: 'yes', r: { match: 'yes', find: 'yes' } })], att: A([['2026-11-16', 'present']]) })
+    const weak = L({ id: 'w', name: 'Bala', att: A([['2026-11-02', 'present'], ['2026-11-09', 'absent'], ['2026-11-16', 'absent']]) })
+    const none = L({ id: 'n', name: 'Aisha' }), mid = L({ id: 'm', name: 'Musa', att: A([['2026-11-09', 'absent'], ['2026-11-16', 'absent']]) })
+    const sum = R.classSummary([strong, weak, none, mid], ctx())
+    eq([sum.learners, sum.support, sum.watch, sum.ok, sum.nodata], [4, 1, 1, 1, 1], 'class counts by status')
+    eq([sum.attendanceMarks, sum.lessonsCompleted], [6, 1], 'pooled attendance marks and finished lessons'); near(sum.attendanceRate, 2 / 6, 'pooled attendance rate')
+    eq([...sum.reports].sort(R.bySupport).map((x) => x.l.name), ['Bala', 'Musa', 'Aisha', 'Zainab'], 'those who need most help first, then watch, then no-data, then on track')
+    eq(R.classSummary([], ctx()).attendanceRate, null, 'empty class: no rate')
+  }
+
+  // --- what the learner sees: facts about their own work, nothing about "support"
+  {
+    const prog = [...litKeys.slice(0, 5).map((k, i) => row(k, i < 2 ? { bt: 0 } : { bt: 1, wr: 'yes', r: { match: 'yes' } })), row('n-add-5', { r: { calcYes: 3, calcNo: 1, pickRight: 1, pickTotal: 1 } })]
+    const v = R.learnerView(prog, A([['2026-11-09', 'present'], ['2026-11-16', 'late'], ['2026-11-17', 'absent']]), [{ a: 'x', st: 'reviewed', score: 8 }, { a: 'y', st: 'submitted' }], NOW)
+    eq([v.letters.total, v.letters.done, v.letters.solid], [26, 5, 3], 'letters: finished and solid (not needing practice)')
+    eq([v.calc.done, v.writtenRight, v.writtenTotal], [1, 3, 4], 'written maths facts'); eq(v.practise.length, 2, 'two lessons to do again'); eq([v.attendance.attended, v.attendance.marked, v.markedWork], [2, 3, 1], 'attendance and marked work')
+    ok(!('support' in v) && !('flags' in v) && !JSON.stringify(v).includes('attLow'), 'the learner view has no support flags')
+    ok(!R.learnerView([], [], [], NOW).anyProgress, 'nothing yet = says so')
+    const pg = readFileSync('src/adult/pages/Progress.jsx', 'utf8')
+    ok(!/supportFlags|STATUS_KEY|FLAG_KEY|classSummary|reportData|supabaseStaff|staffApi/.test(pg), 'the learner progress page cannot show teacher-only judgements or call staff functions')
+    ok(!/rank|leaderboard|points|stars|confetti/i.test(pg.replace(/\/\/.*$/gm, '')), 'no points, ranks or leaderboards for adults')
+  }
+
+  // --- class schedule: same rules in the app and the database
+  {
+    const ok1 = { days: [1, 3], start: '16:00', end: '17:30', mode: 'physical', location: 'Hall', note: '' }
+    eq(R.scheduleProblem(ok1), null, 'valid schedule'); eq(R.scheduleProblem({ days: [], mode: 'online', note: 'WhatsApp group' }), null, 'no fixed days is fine')
+    eq(R.scheduleProblem({ ...ok1, days: [0] }), 'schedDays', 'day 0'); eq(R.scheduleProblem({ ...ok1, days: [8] }), 'schedDays', 'day 8'); eq(R.scheduleProblem({ ...ok1, days: [1, 1] }), 'schedDays', 'duplicate day')
+    eq(R.scheduleProblem({ ...ok1, days: [1, 2, 3, 4, 5, 6, 7] }), null, 'all seven days'); eq(R.scheduleProblem({ ...ok1, start: '24:00' }), 'schedTime', '24:00'); eq(R.scheduleProblem({ ...ok1, start: '9:00' }), 'schedTime', 'needs 2 digits')
+    eq(R.scheduleProblem({ ...ok1, end: '16:00' }), 'schedOrder', 'end equal to start'); eq(R.scheduleProblem({ ...ok1, end: '15:59' }), 'schedOrder', 'end before start'); eq(R.scheduleProblem({ ...ok1, mode: 'x' }), 'sched', 'unknown mode')
+    eq(R.scheduleProblem({ ...ok1, note: 'x'.repeat(201) }), 'sched', 'note too long'); eq(R.scheduleProblem({ ...ok1, note: 'x'.repeat(200) }), null, 'note of 200 is fine'); eq(R.scheduleProblem({ ...ok1, location: 'x'.repeat(121) }), 'sched', 'location too long')
+    eq(R.scheduleParts({ days: [3, 1], start: '08:00', end: '09:00', note: 'n' }).days, [1, 3], 'days sorted for display'); eq(R.scheduleParts({}).days, [], 'empty schedule'); eq(R.scheduleParts(null).days, [], 'null schedule')
+  }
+
+  // --- the SQL (migration 022): structure and agreement with the app
+  {
+    const m22 = readFileSync('supabase/migrations/022_adult_reports.sql', 'utf8')
+    const code = m22.replace(/--.*$/gm, '')
+    const fn = (name) => (code.match(new RegExp(`create or replace function public\\.${name}\\([^)]*\\)[\\s\\S]*?\\n\\$\\$;|create or replace function public\\.${name}\\([^)]*\\)[\\s\\S]*?end \\$\\$;`)) || [''])[0]
+    ok(/create table if not exists public\.adult_sessions/.test(code) && /create table if not exists public\.adult_attendance/.test(code), 'sessions and attendance tables')
+    ok(/unique \(class_id, session_date\)/.test(code), 'one session per class per date')
+    ok(/status\s+text not null check \(status in \('present','absent','late'\)\)/.test(code), 'attendance statuses = present/absent/late')
+    ok(/primary key \(session_id, learner_id\)/.test(code), 'one mark per learner per session')
+    ok(/on delete cascade/.test((code.match(/create table if not exists public\.adult_attendance \([\s\S]*?\n\);/) || [''])[0]) && /references public\.adult_sessions\(id\) on delete cascade/.test(code), 'marks go with their session')
+    ok(/alter table public\.adult_sessions\s+enable row level security/.test(code) && /alter table public\.adult_attendance\s+enable row level security/.test(code), 'RLS on both new tables')
+    ok(/grant select on public\.adult_sessions, public\.adult_attendance to authenticated/.test(code) && !/grant (insert|update|delete|all)/i.test(code), 'browser can only read the new tables')
+    ok(/revoke all on public\.adult_sessions, public\.adult_attendance from anon, authenticated/.test(code), 'anonymous and browser roles reset before the grant')
+    const pol = (code.match(/create policy "adult_attendance: own or class staff"[\s\S]*?;/) || [''])[0]
+    ok(/learner_id = auth\.uid\(\)/.test(pol) && /adult_can_manage_session\(session_id\)/.test(pol) && !/staff_can_see_learner/.test(pol), 'a facilitator reads attendance only through the CLASS they manage, not through the learner')
+    ok(/create policy "adult_sessions: class staff"[\s\S]*?adult_can_manage_class\(class_id\)/.test(code), 'sessions readable by class staff only')
+    for (const f of ['adult_open_session', 'adult_mark_attendance', 'adult_remove_session', 'adult_set_class_schedule', 'adult_admin_unassign_facilitator', 'adult_report_data', 'adult_my_report', 'adult_can_manage_session']) {
+      ok(new RegExp(`create or replace function public\\.${f}\\(`).test(code), `${f} exists`); const body = fn(f); ok(/security definer set search_path = ''/.test(body), `${f}: security definer, empty search_path`)
+    }
+    for (const f of ['adult_open_session', 'adult_mark_attendance', 'adult_remove_session', 'adult_set_class_schedule']) ok(/adult_can_manage_class\(/.test(fn(f)) && /42501/.test(fn(f)), `${f} checks that the caller manages the class`)
+    for (const f of ['adult_open_session', 'adult_mark_attendance', 'adult_remove_session', 'adult_set_class_schedule']) ok(/class is closed/.test(fn(f)), `${f} refuses a closed class`)
+    ok(/is_adult_staff\(array\['adult_admin'\]\)/.test(fn('adult_admin_unassign_facilitator')), 'only the adult admin removes a facilitator from a class')
+    const mark = fn('adult_mark_attendance')
+    ok(/adult_class_members cm where cm\.class_id = s\.class_id and cm\.learner_id = v_learner/.test(mark), 'a learner can be marked only in a class they belong to')
+    ok(/\('present','absent','late'\)/.test(mark) && /> 300/.test(mark), 'status and size of the marks are validated')
+    ok(/\(cm\.left_at is null or cm\.left_at::date >= s\.session_date\)/.test(mark), 'a learner who left before the session date cannot be marked for it')
+    ok(/on conflict \(session_id, learner_id\) do update/.test(mark), 'marking again corrects the earlier mark')
+    const open = fn('adult_open_session'); ok(/p_date < current_date - 366 or p_date > current_date \+ 1/.test(open), 'session date limited: not far in the past or the future')
+    ok(/on conflict \(class_id, session_date\)/.test(open), 'opening the same date twice gives the same session')
+    const sch = fn('adult_set_class_schedule')
+    ok(sch.includes("'^([01][0-9]|2[0-3]):[0-5][0-9]$'") && sch.includes('p_end <= p_start') && sch.includes('not between 1 and 7') && sch.includes('cardinality(v_days) > 7') && sch.includes('> 120') && sch.includes('> 200'), 'the database repeats the schedule rules (time format, order, days 1-7, lengths)')
+    ok(/mode in|p_mode not in \('physical','online','both'\)/.test(sch), 'schedule mode validated')
+    const rep = fn('adult_report_data')
+    ok(/not public\.adult_can_manage_class\(p_class\)/.test(rep) && rep.indexOf('adult_can_manage_class') < rep.indexOf('jsonb_build_object'), 'a class report starts with the permission check')
+    ok(/att\.learner_id = p\.id and s\.class_id = p_class/.test(rep) && /s\.learner_id = p\.id and a\.class_id = p_class/.test(rep), 'attendance and work are limited to THIS class')
+    ok(/m\.class_id = p_class and m\.left_at is null/.test(rep), 'only current members')
+    ok(/> 300 then raise exception 'too many learners'/.test(rep), 'class size is capped')
+    ok(/adult_log\('view_class_report'/.test(rep), 'reading a class report is logged')
+    ok(/case when v_admin then/.test(rep), 'staff e-mail addresses are shown to the adult admin only')
+    ok(/s\.status <> 'superseded'/.test(rep), 'only the latest attempt per assignment')
+    ok(!/service_role/i.test(code), 'no service key in 022')
+    const my = fn('adult_my_report')
+    ok(/is_adult_learner\(\)/.test(my) && (my.match(/learner_id = auth\.uid\(\)/g) || []).length === 3 && !/p_learner/.test(my), 'a learner can only ever read their own report (no learner parameter)')
+    ok(/case when s\.status = 'reviewed' then f\.score end/.test(my), 'a score is shown only once the work is marked')
+    ok(/adult_report_data\(uuid\)/.test(code) && /grant execute on function public\.%s to authenticated/.test(code), 'functions granted to signed-in users only')
+    ok(/revoke all on function public\.%s from public, anon/.test(code), 'and revoked from anonymous')
+    // the app and the database use the same words
+    ok(R.DAYS.length === 7 && R.DAYS[0] === 1 && R.DAYS[6] === 7, 'days 1-7 like the database')
+    ok(src_has("['present', 'absent', 'late']"), 'attendance statuses in the app match the database')
+    function src_has(x) { return readFileSync('src/adult/reports.js', 'utf8').includes(x) }
+    // API
+    const api = readFileSync('src/adult/adultApi.js', 'utf8')
+    for (const [m, f] of [['reportData', 'adult_report_data'], ['openSession', 'adult_open_session'], ['markAttendance', 'adult_mark_attendance'], ['removeSession', 'adult_remove_session'], ['setSchedule', 'adult_set_class_schedule'], ['unassignFacilitator', 'adult_admin_unassign_facilitator']]) ok(new RegExp(`${m}: .*supabaseStaff, '${f}'`).test(api), `staffApi.${m} calls ${f} with the staff client`)
+    ok(/myReport: \(\) => rpc\(supabaseAdult, 'adult_my_report'/.test(api), 'learner report uses the learner client')
+    ok(/p_days: s\.days, p_start: s\.days\.length \? s\.start : null/.test(api), 'a schedule without days sends no times')
+    ok(/too many learners.*TOOMANY|TOOMANY/.test(api) && /bad date.*BADDATE|BADDATE/.test(api) && /BADSCHEDULE/.test(api), 'database refusals become readable messages')
+    for (const k of ['errBadDate', 'errBadSchedule', 'errBadMarks', 'errTooMany']) ok(strings.en[k] && strings.ha[k], `message ${k} exists`)
+    ok(/select\('id,name,mode,location,status,course_id,schedule'\)/.test(api), 'class list includes the schedule')
+    // screens
+    const teach = readFileSync('src/adult/pages/Teach.jsx', 'utf8')
+    ok(/\['attendance', 'tAttendance'\]/.test(teach) && /\['reports', 'tReports'\]/.test(teach) && /<AttendanceTab \/>/.test(teach) && /<ReportsTab role=\{role\} \/>/.test(teach), 'attendance and reports tabs are in the facilitator screen')
+    ok(/ScheduleEditor cls=\{c\}/.test(teach) && /scheduleLine\(t, c\)/.test(teach), 'schedule shown and editable on the class card')
+    ok(/path="progress" element=\{<Progress \/>\}/.test(readFileSync('src/adult/AdultApp.jsx', 'utf8')), 'learner progress route')
+    ok(/to="\/adult\/progress"/.test(readFileSync('src/adult/pages/Learner.jsx', 'utf8')), 'link to My progress on Home')
+    const trs = readFileSync('src/adult/pages/TeachReports.jsx', 'utf8')
+    ok(!/supabase/i.test(trs.replace(/staffApi/g, '')), 'the report screens go through staffApi only')
+    ok(/window\.print\(\)/.test(trs) && /ad-print-area/.test(trs) && /ad-noprint/.test(trs) && /PrintHead/.test(trs), 'reports can be printed from the phone')
+    ok(/@media print/.test(readFileSync('src/adult/adult.css', 'utf8')) && /\.ad-noprint[^{]*\{ display:none !important/.test(readFileSync('src/adult/adult.css', 'utf8')), 'print stylesheet hides buttons and navigation')
+    ok(strings.en.rpConfidential && /rpConfidential/.test(trs), 'printed reports are marked confidential')
+    ok(/rpMeasureNote/.test(trs) && /never reads handwriting/.test(strings.en.rpMeasureNote), 'the report says handwriting is not read by the app')
+    const pkg = JSON.parse(readFileSync('package.json', 'utf8')); eq(Object.keys(pkg.dependencies).sort(), ['@supabase/supabase-js', 'lucide-react', 'react', 'react-dom', 'react-router-dom'], 'no new dependency')
+  }
 }
 
 console.log(fail ? `\n${fail} of ${n} checks FAILED` : `All ${n} adult checks passed`)

@@ -7,6 +7,7 @@ import { normalizePhone } from '../phone.js'
 import Assessment, { AssessmentResult } from './Assessment.jsx'
 import { LangSwitch } from './Public.jsx'
 import WorkTab from './TeachWork.jsx'
+import { AttendanceTab, ReportsTab, ScheduleEditor, scheduleLine } from './TeachReports.jsx'
 import { lessonByKey } from '../courses.js'
 import { needsPractice } from '../progress.js'
 
@@ -63,14 +64,16 @@ function StaffLogin() {
 function Dashboard({ role }) {
   const { t } = useAdult()
   const [tab, setTab] = useState('learners')
-  const tabs = [['learners', 'tLearners'], ['classes', 'tClasses'], ['work', 'tWork'], ...(role === 'adult_admin' ? [['staff', 'tStaff']] : [])]
+  const tabs = [['learners', 'tLearners'], ['classes', 'tClasses'], ['attendance', 'tAttendance'], ['work', 'tWork'], ['reports', 'tReports'], ...(role === 'adult_admin' ? [['staff', 'tStaff']] : [])]
   return (
     <div className="ad-page wide">
       <div className="ad-row"><h1>{t('forFacilitators')}</h1><button className="ad-link" onClick={() => supabaseStaff.auth.signOut()}>{t('signOut')}</button></div>
       <div className="ad-subtabs" role="tablist">{tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(l)}</button>)}</div>
       {tab === 'learners' && <Learners role={role} />}
       {tab === 'classes' && <Classes role={role} />}
+      {tab === 'attendance' && <AttendanceTab />}
       {tab === 'work' && <WorkTab />}
+      {tab === 'reports' && <ReportsTab role={role} />}
       {tab === 'staff' && <StaffTab />}
     </div>
   )
@@ -172,7 +175,7 @@ function LearnerDetail({ id, onBack }) {
 function Classes({ role }) {
   const { t, lang } = useAdult()
   const [rows, setRows] = useState([]); const [courses, setCourses] = useState([]); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
-  const [f, setF] = useState({ name: '', course: '', mode: 'physical', location: '' }); const [phone, setPhone] = useState({}); const [email, setEmail] = useState({}); const [closing, setClosing] = useState('')
+  const [f, setF] = useState({ name: '', course: '', mode: 'physical', location: '' }); const [phone, setPhone] = useState({}); const [email, setEmail] = useState({}); const [closing, setClosing] = useState(''); const [sched, setSched] = useState('')
   const load = useCallback(async () => { const [c, k] = await Promise.all([staffApi.classes(), staffApi.courses()]); setRows(c.data || []); setCourses(k.data || []); setErr(c.error ? E(t, c.error) : '') }, [t])
   useEffect(() => { load() }, [load])
   const run = async (p, ok) => { setMsg(''); setErr(''); const { error } = await p; if (error) setErr(E(t, error)); else { setMsg(ok); load() } }
@@ -191,6 +194,8 @@ function Classes({ role }) {
       {rows.length === 0 ? <p className="ad-note">{t('noClasses')}</p> : rows.map((c) => (
         <div className="ad-card" key={c.id}>
           <h3>{c.name}</h3><p className="ad-note">{t('mode' + c.mode[0].toUpperCase() + c.mode.slice(1))}{c.location ? ' · ' + c.location : ''}</p>
+          <p className="ad-note">{scheduleLine(t, c) || t('schNone')}</p>
+          {c.status === 'active' && (sched === c.id ? <ScheduleEditor cls={c} onDone={(saved) => { setSched(''); if (saved) { setMsg(t('saved')); load() } }} /> : <button className="ad-link" onClick={() => setSched(c.id)}>{t('schEdit')}</button>)}
           <div className="ad-row"><input inputMode="tel" placeholder={t('phone')} value={phone[c.id] || ''} onChange={(e) => setPhone({ ...phone, [c.id]: e.target.value })} />
             <button className="ad-btn" disabled={!normalizePhone(phone[c.id] || '')} onClick={() => run(staffApi.addMember(c.id, normalizePhone(phone[c.id])), t('saved'))}>{t('addLearner')}</button></div>
           {c.status === 'active' && (closing === c.id

@@ -53,6 +53,7 @@ export function Home() {
         : <div className="ad-card"><h2>{t('yourStart')}</h2><AssessmentResult recommended={d.assessment.recommended} scores={d.assessment.scores} needsConfirmation={d.assessment.needs_confirmation} />
             <Link className="ad-btn primary" to="/adult/courses">{t('goLessons')}</Link></div>}
       {Object.keys(COURSES).map((slug) => <CourseCard key={slug} slug={slug} />)}
+      <Link className="ad-btn" to="/adult/progress">{t('myProgress')}</Link>
       <p className="ad-note">{t('lessonsSoon')}</p>
     </main>
   )

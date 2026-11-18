@@ -51,3 +51,22 @@
 .ad-grid[data-kind="letter"] .ad-opt { font-size:2.6rem; }
 .ad-listrow { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:10px 14px; background:var(--card); border:1px solid var(--line); border-radius:12px; }
 .ad-listen svg { margin-right:8px; flex:none; } .ad-listen { display:inline-flex; align-items:center; }
+/* phase 7: attendance, reports, schedule, learner progress, printing */
+.ad-roster { display:flex; flex-direction:column; gap:8px; padding:10px 12px; background:var(--card); border:1px solid var(--line); border-radius:12px; } .ad-roster .ad-note { display:block; }
+.ad-seg { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; } .ad-seg button { min-height:52px; padding:6px 8px; border-radius:12px; border:2px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:.95rem; font-weight:600; cursor:pointer; }
+.ad-seg button.on.present { background:var(--good); border-color:var(--good); color:#fff; } .ad-seg button.on.late { background:#b36b00; border-color:#b36b00; color:#fff; } .ad-seg button.on.absent { background:var(--bad); border-color:var(--bad); color:#fff; }
+.ad-seg button:disabled { opacity:.5; cursor:not-allowed; }
+.ad-tag.st-support { background:#fde4e4; color:#7a1414; border-color:#e3a0a0; } .ad-tag.st-watch { background:#fff4d6; color:#4a3a00; border-color:#e3c766; } .ad-tag.st-ok { background:#e2f3e8; color:#14502b; border-color:#9fd1b1; } .ad-tag.st-nodata { background:#eceff2; color:#3b4753; border-color:#c3ccd3; }
+.ad-list .ad-tag { margin-left:0; align-self:flex-start; }
+.ad-rules { margin:.3em 0; padding-left:1.2em; display:flex; flex-direction:column; gap:6px; }
+.ad-days { border:0; padding:0; margin:0; display:flex; flex-direction:column; gap:4px; } .ad-days legend { font-weight:600; margin-bottom:6px; }
+.ad-bars { display:flex; align-items:flex-end; gap:8px; height:120px; padding-top:6px; } .ad-bars div { flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; } .ad-bars i { display:block; width:100%; min-height:3px; background:var(--brand); border-radius:6px 6px 0 0; } .ad-bars span { font-size:.9rem; color:var(--muted); }
+.ad-print-only { display:none; }
+@media print {
+  .ad-noprint, .ad-tabs, .ad-subtabs, .ad-link, .ad-lang { display:none !important; }
+  .ad-print-only { display:block; }
+  .adult { background:#fff !important; color:#000 !important; font-size:12pt; --ink:#000; --muted:#333; --card:#fff; --line:#999; --bg:#fff; }
+  .ad-page.wide { max-width:none; padding:0; } .ad-content { padding-bottom:0; }
+  .ad-card { break-inside:avoid; border:1px solid #999; } .ad-progress { border:1px solid #999; } .ad-progress i { background:#000 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .ad-tag { border:1px solid #000 !important; background:#fff !important; color:#000 !important; }
+}

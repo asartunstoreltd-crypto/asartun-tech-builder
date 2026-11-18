@@ -24,7 +24,7 @@ async function rpc(client, fn, args) {
   try {
     const { data, error } = await client.rpc(fn, args)
     if (!error) return { data, error: null }
-    const known = [[/already marked/i, 'MARKED'], [/assignment closed/i, 'CLOSED_WORK'], [/too many attempts/i, 'ATTEMPTS'], [/photo not uploaded/i, 'NOUPLOAD'], [/class is closed/i, 'CLASS_CLOSED'], [/bad score/i, 'BADSCORE']]
+    const known = [[/already marked/i, 'MARKED'], [/assignment closed/i, 'CLOSED_WORK'], [/too many attempts/i, 'ATTEMPTS'], [/photo not uploaded/i, 'NOUPLOAD'], [/class is closed/i, 'CLASS_CLOSED'], [/bad score/i, 'BADSCORE'], [/too many learners/i, 'TOOMANY'], [/bad date/i, 'BADDATE'], [/bad schedule/i, 'BADSCHEDULE'], [/bad marks|bad note/i, 'BADMARKS']]
     const hit = known.find(([re]) => re.test(error.message || ''))
     return fail(hit ? hit[1] : /denied|authorized|42501/i.test(error.message) ? 'denied' : 'generic')
   } catch (e) { return fail(net(e)) }
@@ -86,6 +86,7 @@ export const learnerApi = {
     } catch (e) { return fail(net(e)) }
   },
   deleteAccount: () => rpc(supabaseAdult, 'adult_delete_my_account', {}),
+  myReport: () => rpc(supabaseAdult, 'adult_my_report', {}),
 }
 
 // ---- staff (facilitators and adult admin) ----
@@ -93,7 +94,7 @@ export const staffApi = {
   me: (uid) => select(supabaseStaff.from('adult_staff').select('role,active').eq('user_id', uid).maybeSingle()),
   learners: (search) => rpc(supabaseStaff, 'adult_staff_learners', { p_search: search || null }),
   detail: (id) => rpc(supabaseStaff, 'adult_staff_learner_detail', { p_learner: id }),
-  classes: () => select(supabaseStaff.from('adult_classes').select('id,name,mode,location,status,course_id').order('name')),
+  classes: () => select(supabaseStaff.from('adult_classes').select('id,name,mode,location,status,course_id,schedule').order('name')),
   courses: () => select(supabaseStaff.from('adult_courses').select('id,slug,title,status').order('position')),
   createClass: (name, course, mode, location) => rpc(supabaseStaff, 'adult_admin_create_class', { p_name: name, p_course: course || null, p_mode: mode, p_location: location || null }),
   assignFacilitator: (cls, email) => rpc(supabaseStaff, 'adult_admin_assign_facilitator', { p_class: cls, p_email: email }),
@@ -110,5 +111,12 @@ export const staffApi = {
   submission: (id) => rpc(supabaseStaff, 'adult_staff_submission', { p_id: id }),
   review: (i) => rpc(supabaseStaff, 'adult_review_submission', { p_submission: i.id, p_score: i.score, p_comment: i.comment || null, p_corrections: i.corrections || [], p_redo: Boolean(i.redo) }),
   signedUrl: async (path) => { try { const { data, error } = await supabaseStaff.storage.from('adult-submissions').createSignedUrl(path, 300); return error ? fail('generic') : { data: data.signedUrl, error: null } } catch (e) { return fail(net(e)) } },
+  // Phase 7: attendance, schedule, reports
+  reportData: (cls) => rpc(supabaseStaff, 'adult_report_data', { p_class: cls }),
+  openSession: (cls, date, note) => rpc(supabaseStaff, 'adult_open_session', { p_class: cls, p_date: date, p_note: note || null }),
+  markAttendance: (session, marks) => rpc(supabaseStaff, 'adult_mark_attendance', { p_session: session, p_marks: marks }),
+  removeSession: (session) => rpc(supabaseStaff, 'adult_remove_session', { p_session: session }),
+  setSchedule: (cls, s) => rpc(supabaseStaff, 'adult_set_class_schedule', { p_class: cls, p_mode: s.mode, p_days: s.days, p_start: s.days.length ? s.start : null, p_end: s.days.length ? s.end : null, p_location: s.location || null, p_note: s.note || null }),
+  unassignFacilitator: (cls, email) => rpc(supabaseStaff, 'adult_admin_unassign_facilitator', { p_class: cls, p_email: email }),
   submitAssessment: (learner, a) => rpc(supabaseStaff, 'adult_submit_assessment', { p_learner: learner, p_client: a.client, p_mode: 'assisted', p_items: a.items, p_scores: a.scores, p_recommended: a.recommended }),
 }
