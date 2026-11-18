@@ -51,9 +51,3 @@
 .ad-grid[data-kind="letter"] .ad-opt { font-size:2.6rem; }
 .ad-listrow { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:10px 14px; background:var(--card); border:1px solid var(--line); border-radius:12px; }
 .ad-listen svg { margin-right:8px; flex:none; } .ad-listen { display:inline-flex; align-items:center; }
-
-/* numeracy (phase 5) */
-.ad-sum { font-size:2.4rem; font-weight:700; text-align:center; margin:.15em 0; font-variant-numeric:tabular-nums; letter-spacing:.02em; }
-.ad-dotgroups { display:flex; flex-wrap:wrap; gap:16px 28px; justify-content:center; padding:8px; } .ad-dotgroup { display:flex; gap:8px; }
-.ad-dotgroup i { width:24px; height:24px; border-radius:50%; background:var(--ink); display:block; }
-.ad-tens { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:1fr 1fr; gap:8px; } .ad-tens li { display:flex; flex-direction:column; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px; } .ad-tens strong { font-size:1.8rem; }

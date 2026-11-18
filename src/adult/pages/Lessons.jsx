@@ -2,62 +2,56 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAdult } from '../AdultAuth.jsx'
 import { learnerApi } from '../adultApi.js'
+import { COURSES, courseOfLesson, firstLessonOf, lessonByKey, nextInCourse } from '../courses.js'
 import { nameCanGuide, nameForGuide } from '../curriculum.js'
-import { COURSE_DEFS, courseOfKey, lessonAny } from '../courses.js'
-import { addCalc, addQuiz, buildResults, emptyResults } from '../lessonResults.js'
-import { unitEvidence } from '../progress.js'
-import { CalcStep, CompareStep, CountStep, NumTeach, PickNumberStep, QuizStep } from './MathSteps.jsx'
+import { formatItem } from '../numeracy.js'
 import { layoutText, scoreTrace, suggestAspect } from '../guide.js'
-import { needsPractice, summarize } from '../progress.js'
+import { aggregateResults, needsPractice, summarize } from '../progress.js'
 import { enqueue, flush } from '../progressQueue.js'
 import { hasVoice, useVoices } from '../speech.js'
 import HandwritingCanvas from '../components/HandwritingCanvas.jsx'
 import AdultAudio, { VoiceHint } from '../components/AdultAudio.jsx'
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : 'a' + Date.now() + Math.random().toString(16).slice(2))
+const LITERACY = 'basic-literacy'
 
-// Loads one course (by slug), whether the learner joined it, their progress in it, and the start advice from their latest assessment.
+// Loads one course, whether the learner joined it, their progress, and the starting point advised by the assessment.
 export function useCourse(slug) {
-  const def = COURSE_DEFS[slug]
   const [d, setD] = useState({ loading: true, error: false, course: null, enrolled: false, rows: [], start: null })
+  const kind = COURSES[slug]?.kind
   const load = useCallback(async () => {
     await flush((i) => learnerApi.recordLesson(i))                     // send anything that could not be saved earlier
     const [c, e, p, a] = await Promise.all([learnerApi.courses(), learnerApi.enrollments(), learnerApi.progress(), learnerApi.latestAssessment()])
     const course = (c.data || []).find((x) => x.slug === slug) || null
+    const keys = new Set(COURSES[slug].lessons.map((l) => l.key))
     setD({
       loading: false, error: Boolean(c.error || e.error || p.error), course, enrolled: Boolean(course && (e.data || []).some((x) => x.course_id === course.id)),
-      rows: (p.data || []).filter((r) => !course || r.course_id === course.id), start: ((a.data || [])[0]?.recommended?.[def.startField]?.start) || null,
+      rows: (p.data || []).filter((r) => keys.has(r.lesson_key)), start: ((a.data || [])[0]?.recommended?.[kind]?.start) || null,
     })
-  }, [slug, def.startField])
+  }, [slug, kind])
   useEffect(() => { load() }, [load])
   return { ...d, reload: load }
 }
-export const useLiteracy = () => useCourse('basic-literacy')
-
+export const useLiteracy = () => useCourse(LITERACY)
 const lessonTitle = (t, l) => t(l.title.key, l.title.vars)
 
-export const LessonList = () => <CourseList slug="basic-literacy" />
-export const NumeracyList = () => <CourseList slug="basic-numeracy" />
-
-function CourseList({ slug }) {
+export function LessonList({ slug = LITERACY }) {
   const { t } = useAdult()
-  const def = COURSE_DEFS[slug]
+  const def = COURSES[slug]
   const d = useCourse(slug)
   const [err, setErr] = useState('')
-  const [skills, setSkills] = useState([])
-  const KEYS = useMemo(() => def.lessons.map((l) => l.key), [def])
-  const sum = useMemo(() => summarize(d.rows, KEYS), [d.rows, KEYS])
-  useEffect(() => { if (def.numeracy) learnerApi.skills().then((r) => setSkills(r.data || [])) }, [def.numeracy])
+  const keys = useMemo(() => def.lessons.map((l) => l.key), [def])
+  const sum = useMemo(() => summarize(d.rows, keys), [d.rows, keys])
   if (d.loading) return <div className="ad-page ad-center"><p className="ad-big">{t('wait')}</p></div>
   const join = async () => { setErr(''); const { error } = await learnerApi.enroll(d.course.id); if (error) setErr(t(error === 'network' ? 'errNetwork' : 'errGeneric')); else d.reload() }
   if (!d.course) return <main className="ad-page"><p className="ad-big">{t('errGeneric')}</p></main>
   if (!d.enrolled) return (
-    <main className="ad-page"><h1>{t('lessonsTitle')}</h1><p className="ad-big">{t('notEnrolled')}</p>
+    <main className="ad-page"><h1>{t(def.titleKey)}</h1><p className="ad-big">{t('notEnrolled')}</p>
       {err && <p className="ad-error">{err}</p>}<button className="ad-btn primary" onClick={join}>{t('joinFree')}</button></main>)
-  const startKey = sum.completed === 0 ? def.first(d.start).key : sum.next
+  const startKey = sum.completed === 0 ? firstLessonOf(def, d.start).key : sum.next
   return (
     <main className="ad-page">
-      <h1>{t('lessonsTitle')}</h1>
+      <h1>{t(def.titleKey)}</h1>
       <VoiceHint />
       {d.error && <p className="ad-banner">{t('errNetwork')}</p>}
       <div className="ad-card">
@@ -66,13 +60,9 @@ function CourseList({ slug }) {
         {sum.practice.length > 0 && <p className="ad-note">{t('practiceCount', { n: sum.practice.length })}</p>}
         {startKey && <Link className="ad-btn primary" to={'/adult/learn/' + startKey}>{sum.completed === 0 ? t('startHere') : t('continueLesson')}</Link>}
       </div>
-      {def.units.map((u) => {
-        const ue = def.numeracy ? unitEvidence(u, sum.byKey) : null
-        const confirmed = def.numeracy && skills.find((x) => x.skill === u.id && x.result === 'can')
-        return (
+      {def.units.map((u) => (
         <section key={u.id}>
           <h2>{t(u.titleKey)}</h2>
-          {ue && <p className="ad-note">{t('unitProgress', { done: ue.done, total: ue.total })}{confirmed ? ' · ' + t('confirmedTag') : ''}</p>}
           <ul className="ad-lessons">
             {u.lessons.map((l) => {
               const r = sum.byKey[l.key]; const done = r?.status === 'completed'
@@ -86,7 +76,7 @@ function CourseList({ slug }) {
                 </li>)
             })}
           </ul>
-        </section>)})}
+        </section>))}
     </main>
   )
 }
@@ -94,6 +84,9 @@ function CourseList({ slug }) {
 // ---------------- steps ----------------
 function Feedback({ ok, children }) { return <p className={ok ? 'ad-ok ad-big' : 'ad-note ad-big'} role="status">{children}</p> }
 const Pre = ({ children, className = 'ad-huge' }) => <p className={className} style={{ whiteSpace: 'pre-line' }}>{children}</p>
+const Dots = ({ n }) => (n > 0 ? <div className="ad-dotsrow" role="img" aria-label={String(n)}>{Array.from({ length: n }, (_, i) => <i key={i} />)}</div> : null)
+const labelsFor = (t) => ({ pencil: t('pencil'), eraser: t('eraser'), undo: t('undo'), redo: t('redo'), clear: t('clear'), area: t('writeHere') })
+const questionText = (t, f) => (f.textKey ? t(f.textKey, f.vars) : f.expr)
 
 function TeachStep({ step, name, onNext }) {
   const { t, lang } = useAdult()
@@ -106,6 +99,18 @@ function TeachStep({ step, name, onNext }) {
     <AdultAudio text={t('teachLetter', { upper: step.letter, lower: step.lower, word: step.word })} big />
     <AdultAudio text={step.word} lang="ha" big />
   </>)
+  else if (step.kind === 'digit') body = (<>
+    <p className="ad-giant">{step.n}</p><p className="ad-huge">{step.word}</p><Dots n={step.n} />
+    <p className="ad-big">{t('teachDigit', { n: step.n, word: step.word })}</p>
+    <AdultAudio text={step.word} lang="ha" big /></>)
+  else if (step.kind === 'concept') {
+    const w = step.worked ? formatItem(step.worked) : null
+    body = (<>
+      <p className="ad-big">{t(step.conceptKey)}</p>
+      <AdultAudio text={t(step.conceptKey)} big />
+      {w && <><p className="ad-note">{t('workedExample')}</p>{w.textKey && <p className="ad-big">{t(w.textKey, w.vars)}</p>}<Pre>{w.full}</Pre></>}
+    </>)
+  }
   else if (step.kind === 'word') body = (<>
     <p className="ad-big">{t('teachWord', { word: step.word })}</p><p className="ad-giant small">{step.word}</p>{gloss}
     <AdultAudio text={step.word} lang="ha" big /></>)
@@ -128,24 +133,23 @@ function ShowStep({ text, onNext }) {
   </>)
 }
 
-function TraceStep({ text, onResult, onNext }) {
+function TraceStep({ text, onAnswer, onNext }) {
   const { t } = useAdult()
   const aspect = useMemo(() => suggestAspect(text), [text])
   const guide = useMemo(() => layoutText(text, aspect), [text, aspect])
   const cv = useRef(null); const best = useRef(0)
   const [fb, setFb] = useState(null); const [tries, setTries] = useState(0)
-  const labels = { pencil: t('pencil'), eraser: t('eraser'), undo: t('undo'), redo: t('redo'), clear: t('clear'), area: t('writeHere') }
   const check = () => {
     if (!cv.current || cv.current.isEmpty()) { setFb({ empty: true }); return }
     const r = scoreTrace(guide, cv.current.getStrokes(), aspect)
     best.current = Math.max(best.current, r.score); const n = tries + 1
-    setTries(n); setFb(r); onResult({ trace: best.current, traceTries: n })
+    setTries(n); setFb(r); onAnswer({ type: 'trace', score: best.current, tries: n })
   }
   const again = () => { cv.current?.reset(); setFb(null) }
   const canGo = fb && !fb.empty && (fb.ok || tries >= 2)
   return (<>
     <p className="ad-big">{t('traceText')}</p>
-    <HandwritingCanvas ref={cv} aspect={aspect} guideStrokes={guide?.strokes} labels={labels} onChange={() => setFb((f) => (f ? null : f))} />
+    <HandwritingCanvas ref={cv} aspect={aspect} guideStrokes={guide?.strokes} labels={labelsFor(t)} onChange={() => setFb((f) => (f ? null : f))} />
     {fb && (fb.empty ? <Feedback>{t('traceEmpty')}</Feedback> : fb.ok ? <Feedback ok>{t('traceGood')}</Feedback> : <Feedback>{t('traceRetry')}</Feedback>)}
     <div className="ad-stack">
       {!fb && <button className="ad-btn primary" onClick={check}>{t('check')}</button>}
@@ -155,32 +159,53 @@ function TraceStep({ text, onResult, onNext }) {
   </>)
 }
 
-function WriteStep({ text, onResult, onNext }) {
+function WriteStep({ text, onAnswer, onNext }) {
   const { t } = useAdult()
   const aspect = useMemo(() => suggestAspect(text), [text])
-  const [shown, setShown] = useState(false); const [rated, setRated] = useState(false)
-  const labels = { pencil: t('pencil'), eraser: t('eraser'), undo: t('undo'), redo: t('redo'), clear: t('clear'), area: t('writeHere') }
-  const rate = (r) => { onResult({ write: r }); setRated(true); onNext() }
+  const [shown, setShown] = useState(false)
+  const rate = (r) => { onAnswer({ type: 'write', rating: r }); onNext() }
   return (<>
     <p className="ad-big">{t('writeAlone')}</p>
     <Pre className="ad-big">{text}</Pre>
-    <HandwritingCanvas aspect={aspect} labels={labels} disabled={shown} />
+    <HandwritingCanvas aspect={aspect} labels={labelsFor(t)} disabled={shown} />
     {!shown
       ? <button className="ad-btn primary" onClick={() => setShown(true)}>{t('doneWriting')}</button>
       : <><p className="ad-note">{t('theAnswerIs')}</p><Pre>{text}</Pre><p className="ad-big">{t('didItMatch')}</p>
-          <div className="ad-stack" aria-disabled={rated}>
-            <button className="ad-btn primary" disabled={rated} onClick={() => rate('yes')}>{t('canDo')}</button>
-            <button className="ad-btn" disabled={rated} onClick={() => rate('help')}>{t('canHelp')}</button>
-            <button className="ad-btn" disabled={rated} onClick={() => rate('no')}>{t('cannot')}</button>
+          <div className="ad-stack">
+            <button className="ad-btn primary" onClick={() => rate('yes')}>{t('canDo')}</button>
+            <button className="ad-btn" onClick={() => rate('help')}>{t('canHelp')}</button>
+            <button className="ad-btn" onClick={() => rate('no')}>{t('cannot')}</button>
           </div></>}
   </>)
 }
 
-// Multiple choice. The first tap is the answer; it is shown, then the learner moves on.
-function ChoiceStep({ kind, prompt, big, options, target, answerLabel, extra, onResult, onNext, field }) {
+// Handwritten maths: the learner WRITES the answer with a finger. The app does not read handwriting: it then shows the
+// correct answer and the learner (or the facilitator sitting with them) says whether the answer was the same.
+function CalcStep({ item, onAnswer, onNext }) {
+  const { t } = useAdult()
+  const f = useMemo(() => formatItem(item), [item])
+  const [shown, setShown] = useState(false)
+  const rate = (r) => { onAnswer({ type: 'calc', rating: r }); onNext() }
+  return (<>
+    <p className="ad-big">{t('calcPrompt')}</p>
+    {f.textKey ? <><p className="ad-big">{t(f.textKey, f.vars)}</p><p className="ad-note">{f.expr}</p></> : <Pre>{f.expr}</Pre>}
+    <HandwritingCanvas aspect={2.2} labels={labelsFor(t)} disabled={shown} />
+    {!shown
+      ? <button className="ad-btn primary" onClick={() => setShown(true)}>{t('doneWriting')}</button>
+      : <><p className="ad-note">{t('correctAnswerIs')}</p><Pre>{f.full}</Pre><p className="ad-big">{t('mathSameQ')}</p>
+          <div className="ad-stack">
+            <button className="ad-btn primary" onClick={() => rate('yes')}>{t('mathSame')}</button>
+            <button className="ad-btn" onClick={() => rate('help')}>{t('mathUnsure')}</button>
+            <button className="ad-btn" onClick={() => rate('no')}>{t('mathDiff')}</button>
+          </div></>}
+  </>)
+}
+
+// Multiple choice, marked automatically. The first tap is the answer; it is shown, then the learner moves on.
+function ChoiceStep({ kind, prompt, big, options, target, answerLabel, extra, onAnswer, onNext }) {
   const { t } = useAdult()
   const [picked, setPicked] = useState(null)
-  const pick = (o) => { if (picked !== null) return; setPicked(o); onResult({ [field]: o === target ? 'yes' : 'no' }) }
+  const pick = (o) => { if (picked !== null) return; setPicked(o); onAnswer({ type: kind, ok: o === target }) }
   return (<>
     <p className="ad-big">{prompt}</p>
     {extra}
@@ -193,19 +218,18 @@ function ChoiceStep({ kind, prompt, big, options, target, answerLabel, extra, on
   </>)
 }
 
-function ReviewStep({ results, saveState, next, onList, numeracy }) {
+function ReviewStep({ results, saveState, next, onList }) {
   const { t } = useAdult()
   const nav = useNavigate()
-  const traced = results.trace != null
+  const written = results.calcYes + results.calcHelp + results.calcNo
   return (<>
     <h2>{t('reviewTitle')}</h2>
     <div className="ad-card">
-      {traced && <p className="ad-big">{results.trace >= 0.68 ? t('reviewTraceGood') : t('reviewTraceMore')}</p>}
+      {results.trace != null && <p className="ad-big">{results.trace >= 0.68 ? t('reviewTraceGood') : t('reviewTraceMore')}</p>}
       {results.write && <p className="ad-big">{t('reviewWrite_' + results.write)}</p>}
+      {written > 0 && <p className="ad-big">{t('reviewCalc', { same: results.calcYes, total: written })}</p>}
+      {results.pickTotal > 0 && <p className="ad-big">{t('reviewPick', { right: results.pickRight, total: results.pickTotal })}</p>}
       {(results.match || results.find) && <p className="ad-big">{[results.match, results.find].filter(Boolean).every((x) => x === 'yes') ? t('reviewChoicesOk') : t('reviewChoicesMore')}</p>}
-      {numeracy && results.calcN > 0 && <p className="ad-big">{t('reviewCalc', { n: results.calcN, yes: results.calcYes })}</p>}
-      {numeracy && results.quizN > 0 && <p className="ad-big">{t('reviewQuiz', { n: results.quizN, right: results.quizRight })}</p>}
-      {numeracy && results.calcN > 0 && <p className="ad-note">{t('reviewSelfNote')}</p>}
       {saveState === 'saving' && <p className="ad-note">{t('saving')}</p>}
       {saveState === 'queued' && <p className="ad-banner">{t('savedLocal')}</p>}
       {saveState === 'denied' && <p className="ad-error">{t('notEnrolled')}</p>}
@@ -220,12 +244,12 @@ function ReviewStep({ results, saveState, next, onList, numeracy }) {
 
 export function LessonPlayer() {
   const { key } = useParams()
-  const lesson = lessonAny(key)
-  const def = courseOfKey(key) || COURSE_DEFS['basic-literacy']
+  const lesson = lessonByKey(key)
+  const course = lesson ? courseOfLesson(lesson.key) : null
   const nav = useNavigate()
   const { t, profile } = useAdult()
   useVoices()
-  const d = useCourse(def.slug)
+  const d = useCourse(course ? course.slug : LITERACY)
   const name = nameForGuide(profile?.full_name)
   const steps = useMemo(() => {
     if (!lesson) return []
@@ -234,19 +258,18 @@ export function LessonPlayer() {
       .map((s) => (s.text === '@NAME' ? { ...s, text: name } : s))
   }, [lesson, name])
   const [idx, setIdx] = useState(0)
-  const [results, setResults] = useState(emptyResults)
+  const [answers, setAnswers] = useState({})
   const [client] = useState(newId)
   const [saveState, setSaveState] = useState('idle')
   const saved = useRef(false)
-  const merge = (patch) => setResults((r) => ({ ...r, ...patch }))
-  const onQuiz = (ok) => setResults((r) => addQuiz(r, ok))
-  const onCalc = (rating) => setResults((r) => addCalc(r, rating))
   const step = steps[idx]
+  const results = useMemo(() => aggregateResults(steps, answers), [steps, answers])
+  const answer = (v) => setAnswers((a) => ({ ...a, [idx]: v }))
 
   useEffect(() => {                                       // reaching the review step saves the run, exactly once
     if (!step || step.type !== 'review' || saved.current || !d.course || d.loading) return
     saved.current = true; setSaveState('saving')
-    const payload = { course: d.course.id, lesson: lesson.key, client, status: 'completed', results: buildResults(results, steps.length - 1, def.numeracy) }
+    const payload = { course: d.course.id, lesson: lesson.key, client, status: 'completed', results }
     learnerApi.recordLesson(payload).then(({ error }) => {
       if (!error) setSaveState('saved')
       else if (error === 'denied') setSaveState('denied')
@@ -254,30 +277,31 @@ export function LessonPlayer() {
     })
   }, [step, d.course, d.loading])                         // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!lesson) return <Navigate to="/adult/learn" replace />
+  if (!lesson || !course) return <Navigate to="/adult/learn" replace />
   if (d.loading) return <div className="ad-page ad-center"><p className="ad-big">{t('wait')}</p></div>
-  if (!d.enrolled) return <main className="ad-page"><p className="ad-big">{t('notEnrolled')}</p><Link className="ad-btn primary" to={def.listPath}>{t('toList')}</Link></main>
+  if (!d.enrolled) return <main className="ad-page"><p className="ad-big">{t('notEnrolled')}</p><Link className="ad-btn primary" to={course.route}>{t('toList')}</Link></main>
   const go = () => setIdx((i) => Math.min(i + 1, steps.length - 1))
-  const nextL = def.next(lesson.key)
+  const nextL = nextInCourse(lesson.key)
   const voice = hasVoice('ha')
   const body = (() => {
     switch (step.type) {
-      case 'teach': return def.numeracy ? <NumTeach step={step} onNext={go} /> : <TeachStep step={step} name={name} onNext={go} />
-      case 'pickNumber': return <PickNumberStep step={step} onAnswer={onQuiz} onNext={go} />
-      case 'count': return <CountStep step={step} onAnswer={onQuiz} onNext={go} />
-      case 'compare': return <CompareStep step={step} onAnswer={onQuiz} onNext={go} />
-      case 'quiz': return <QuizStep step={step} onAnswer={onQuiz} onNext={go} />
-      case 'calc': return <CalcStep step={step} onRate={onCalc} onNext={go} />
+      case 'teach': return <TeachStep step={step} name={name} onNext={go} />
       case 'show': return <ShowStep text={step.text} onNext={go} />
-      case 'trace': return <TraceStep text={step.text} onResult={merge} onNext={go} />
-      case 'write': return <WriteStep text={step.text} onResult={merge} onNext={go} />
-      case 'match': return <ChoiceStep kind="letter" field="match" prompt={t('matchPrompt')} big={<p className="ad-giant">{step.prompt}</p>} options={step.options} target={step.target} onResult={merge} onNext={go} />
+      case 'trace': return <TraceStep text={step.text} onAnswer={answer} onNext={go} />
+      case 'write': return <WriteStep text={step.text} onAnswer={answer} onNext={go} />
+      case 'calc': return <CalcStep item={step.item} onAnswer={answer} onNext={go} />
+      case 'pick': {
+        const f = step.problem ? formatItem(step.problem) : null
+        return <ChoiceStep kind="pick" prompt={t(step.promptKey, step.vars)} onAnswer={answer} onNext={go} options={step.options} target={step.target}
+          big={f ? <Pre className="ad-huge">{f.textKey ? t(f.textKey, f.vars) : f.expr}</Pre> : step.dots ? <Dots n={step.dots} /> : null} />
+      }
+      case 'match': return <ChoiceStep kind="match" prompt={t('matchPrompt')} big={<p className="ad-giant">{step.prompt}</p>} options={step.options} target={step.target} onAnswer={answer} onNext={go} />
       case 'find': {
         const hear = voice && (step.kind === 'sameWord' || step.kind === 'sameSentence')   // with a Hausa voice this becomes a real reading task
-        if (step.kind === 'hasLetter') return <ChoiceStep kind="word" field="find" prompt={t('findHasLetter', { upper: step.letter })} big={<p className="ad-giant small">{step.letter}</p>} options={step.options} target={step.target} onResult={merge} onNext={go} />
-        return <ChoiceStep kind="word" field="find" prompt={t(hear ? 'findHear' : 'findSame')} big={hear ? null : <p className="ad-giant small">{step.target}</p>} extra={hear ? <AdultAudio text={step.target} lang="ha" big /> : null} options={step.options} target={step.target} onResult={merge} onNext={go} />
+        if (step.kind === 'hasLetter') return <ChoiceStep kind="find" prompt={t('findHasLetter', { upper: step.letter })} big={<p className="ad-giant small">{step.letter}</p>} options={step.options} target={step.target} onAnswer={answer} onNext={go} />
+        return <ChoiceStep kind="find" prompt={t(hear ? 'findHear' : 'findSame')} big={hear ? null : <p className="ad-giant small">{step.target}</p>} extra={hear ? <AdultAudio text={step.target} lang="ha" big /> : null} options={step.options} target={step.target} onAnswer={answer} onNext={go} />
       }
-      default: return <ReviewStep results={results} saveState={saveState} next={nextL} onList={() => nav(def.listPath)} numeracy={def.numeracy} />
+      default: return <ReviewStep results={results} saveState={saveState} next={nextL} onList={() => nav(course.route)} />
     }
   })()
   return (
@@ -286,7 +310,7 @@ export function LessonPlayer() {
       <p className="ad-note">{lessonTitle(t, lesson)}</p>
       {body}
       {idx > 0 && step.type !== 'review' && <button className="ad-link" onClick={() => setIdx(idx - 1)}>{t('back')}</button>}
-      {step.type !== 'review' && <Link className="ad-link" to={def.listPath}>{t('toList')}</Link>}
+      {step.type !== 'review' && <Link className="ad-link" to={course.route}>{t('toList')}</Link>}
     </main>
   )
 }

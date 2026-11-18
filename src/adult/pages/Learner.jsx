@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAdult } from '../AdultAuth.jsx'
 import { learnerApi } from '../adultApi.js'
 import HandwritingCanvas from '../components/HandwritingCanvas.jsx'
 import Assessment, { AssessmentResult } from './Assessment.jsx'
 import { LangSwitch } from './Public.jsx'
 import { useCourse } from './Lessons.jsx'
-import { COURSE_DEFS } from '../courses.js'
+import { COURSES } from '../courses.js'
 import { summarize } from '../progress.js'
 
 // Signed-in shell: content + 4 large tabs (Home, Lessons, Write, Help).
 export function Shell() {
   const { t, status } = useAdult()
+  const { pathname } = useLocation()
   if (status === 'loading') return <div className="ad-page ad-center"><p className="ad-big">{t('wait')}</p></div>
   if (status === 'signedOut') return <Navigate to="/adult/login" replace />
   if (status === 'error') return <div className="ad-page ad-center"><p className="ad-error">{t('errNetwork')}</p><button className="ad-btn primary" onClick={() => window.location.reload()}>{t('tryAgain')}</button></div>
@@ -21,7 +22,7 @@ export function Shell() {
       <div className="ad-content"><Outlet /></div>
       <nav className="ad-tabs" aria-label="Main">
         {[['home', 'tabHome'], ['courses', 'tabCourses'], ['write', 'tabWrite'], ['help', 'tabHelp']].map(([to, k]) =>
-          <NavLink key={to} to={'/adult/' + to} className={({ isActive }) => (isActive ? 'on' : '')}>{t(k)}</NavLink>)}
+          <NavLink key={to} to={'/adult/' + to} className={({ isActive }) => (isActive || (to === 'write' && /^\/adult\/(work|practice)/.test(pathname)) ? 'on' : '')}>{t(k)}</NavLink>)}
       </nav>
     </div>
   )
@@ -51,24 +52,24 @@ export function Home() {
         ? <div className="ad-card"><p className="ad-big">{t('homeNoAssessment')}</p><button className="ad-btn primary" onClick={() => nav('/adult/assessment')}>{t('asStart')}</button></div>
         : <div className="ad-card"><h2>{t('yourStart')}</h2><AssessmentResult recommended={d.assessment.recommended} scores={d.assessment.scores} needsConfirmation={d.assessment.needs_confirmation} />
             <Link className="ad-btn primary" to="/adult/courses">{t('goLessons')}</Link></div>}
-      {[['basic-literacy', 'lessonsTitle', '/adult/learn'], ['basic-numeracy', 'numTitle', '/adult/numeracy']].map(([slug, titleKey, to]) => <CourseCard key={slug} slug={slug} titleKey={titleKey} to={to} />)}
+      {Object.keys(COURSES).map((slug) => <CourseCard key={slug} slug={slug} />)}
       <p className="ad-note">{t('lessonsSoon')}</p>
     </main>
   )
 }
 
-function CourseCard({ slug, titleKey, to }) {
+function CourseCard({ slug }) {
   const { t } = useAdult()
-  const def = COURSE_DEFS[slug]
+  const def = COURSES[slug]
   const d = useCourse(slug)
   if (d.loading || !d.enrolled) return null
   const sum = summarize(d.rows, def.lessons.map((l) => l.key))
   return (
     <div className="ad-card">
-      <h2>{t(titleKey)}</h2>
+      <h2>{t(def.titleKey)}</h2>
       <p className="ad-big">{t('progressLine', { done: sum.completed, total: sum.total })}</p>
       <div className="ad-progress" aria-hidden="true"><i style={{ width: (sum.completed / sum.total) * 100 + '%' }} /></div>
-      <Link className="ad-btn primary" to={to}>{sum.completed === 0 ? t('startHere') : t('continueLesson')}</Link>
+      <Link className="ad-btn primary" to={def.route}>{sum.completed === 0 ? t('startHere') : t('continueLesson')}</Link>
     </div>
   )
 }
@@ -106,7 +107,7 @@ export function Courses() {
             <p>{c.description[lang] || c.description.en}</p>
             {c.status === 'coming_soon' && <p className="ad-note">{t('comingSoon')}</p>}
             {c.status === 'published' && !enrolled && <button className="ad-btn primary" disabled={busy === c.id} onClick={() => enroll(c.id)}>{c.is_free ? t('joinFree') : t('join')}</button>}
-            {c.status === 'published' && enrolled && <><p className="ad-ok">{t('joined')}</p>{c.kind === 'literacy' ? <Link className="ad-btn primary" to="/adult/learn">{t('openLessons')}</Link> : c.kind === 'numeracy' ? <Link className="ad-btn primary" to="/adult/numeracy">{t('openNumLessons')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>}
+            {c.status === 'published' && enrolled && <><p className="ad-ok">{t('joined')}</p>{COURSES[c.slug] ? <Link className="ad-btn primary" to={COURSES[c.slug].route}>{t('openLessons')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>}
           </section>
         )
       })}
@@ -131,7 +132,7 @@ export function Help() {
   const [msg, setMsg] = useState(''); const [confirm, setConfirm] = useState(false)
   const toggle = async (field) => { const { error } = await learnerApi.updateSettings(profile.id, { [field]: !profile[field] }); setMsg(error ? t('errNetwork') : ''); reload() }
   const out = async () => { await learnerApi.signOut(); nav('/adult') }
-  const del = async () => { const { error } = await learnerApi.deleteAccount(); if (error) { setMsg(t('errNetwork')); return }; await learnerApi.signOut(); nav('/adult') }
+  const del = async () => { const f = await learnerApi.removeMyFiles(profile.id); if (f.error) { setMsg(t('errNetwork')); return }; const { error } = await learnerApi.deleteAccount(); if (error) { setMsg(t('errNetwork')); return }; await learnerApi.signOut(); nav('/adult') }
   return (
     <main className="ad-page">
       <h1>{t('tabHelp')}</h1>

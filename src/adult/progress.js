@@ -5,12 +5,13 @@ export { TRACE_OK }
 
 export function needsPractice(row) {
   if (!row) return false
-  const ev = calcEvidence(row).status
-  if (ev === 'practise' || ev === 'mismatch') return true
   const r = row.last_results || {}
   if (row.best_trace != null && Number(row.best_trace) < TRACE_OK) return true
   if (row.write_rating === 'no') return true
   if (r.match === 'no' || r.find === 'no') return true
+  const written = (r.calcYes || 0) + (r.calcHelp || 0) + (r.calcNo || 0)
+  if (written > 0 && ((r.calcYes || 0) + 0.5 * (r.calcHelp || 0)) / written < 0.67) return true       // handwritten answers often different from the correct one
+  if ((r.pickTotal || 0) > 0 && (r.pickRight || 0) / r.pickTotal < 0.67) return true               // multiple-choice marked automatically
   return false
 }
 
@@ -23,35 +24,20 @@ export function summarize(rows, allKeys) {
   return { total: allKeys.length, completed: completed.length, practice, next, byKey }
 }
 
-// ---- Numeracy (Phase 5): can the learner REALLY calculate, or only finish lessons? ----
-// Two independent signals from the last run of a lesson:
-//   self = written answers, marked by the learner ("same" = 1, "nearly / needed help" = 0.5, "different" = 0)  -> an opinion
-//   quiz = multiple-choice questions marked by the app                                                          -> objective
-// 'shown'     the app-marked questions were mostly right (and the learner's own view agrees, if they wrote answers)
-// 'mismatch'  the learner says the written answers were right but the app-marked ones were not: a facilitator should look
-// 'practise'  either signal is weak        'building' some evidence, not yet convincing (e.g. only written answers)
-// 'none'      no calculation questions in the last run.   Never 'verified': only a facilitator's own check does that (adult_skill_checks).
-export const SELF_OK = 0.7, QUIZ_OK = 0.8, QUIZ_LOW = 0.5, MISMATCH_SELF = 0.8, MISMATCH_QUIZ = 0.6
-export function calcEvidence(row) {
-  const r = (row && row.last_results) || {}
-  const cN = Number(r.calcN) || 0, qN = Number(r.quizN) || 0
-  if (!cN && !qN) return { status: 'none', self: null, quiz: null }
-  const self = cN ? (Number(r.calcYes || 0) + 0.5 * Number(r.calcHelp || 0)) / cN : null
-  const quiz = qN ? Number(r.quizRight || 0) / qN : null
-  let status
-  if (self !== null && quiz !== null && self >= MISMATCH_SELF && quiz < MISMATCH_QUIZ) status = 'mismatch'
-  else if ((quiz !== null && quiz <= QUIZ_LOW) || (self !== null && self <= QUIZ_LOW)) status = 'practise'      // half right is not yet convincing
-  else if (quiz !== null && quiz >= QUIZ_OK && (self === null || self >= SELF_OK)) status = 'shown'
-  else status = 'building'
-  return { status, self, quiz }
-}
-
-// Per unit (skill area): how many lessons are done, how many show real calculation, and how the unit's check lesson went.
-export function unitEvidence(unit, byKey) {
-  const rows = unit.lessons.map((l) => byKey[l.key]).filter(Boolean)
-  const done = rows.filter((r) => r.status === 'completed').length
-  const ev = unit.lessons.map((l) => (byKey[l.key] ? calcEvidence(byKey[l.key]).status : 'none'))
-  const check = unit.lessons.find((l) => l.id.startsWith('check_'))
-  return { total: unit.lessons.length, done, shown: ev.filter((e) => e === 'shown').length, mismatch: ev.filter((e) => e === 'mismatch').length,
-           check: check && byKey[check.key] ? calcEvidence(byKey[check.key]).status : 'none' }
+// Combine the answers given in one run of a lesson into the result fields stored in the database.
+// answers[i] belongs to step i, so going Back and answering again REPLACES the earlier answer instead of counting twice.
+//   {type:'trace', score, tries} {type:'write', rating} {type:'match'|'find'|'pick', ok} {type:'calc', rating}
+export const RESULT_KEYS = ['trace', 'write', 'match', 'find', 'steps', 'traceTries', 'calcYes', 'calcHelp', 'calcNo', 'pickRight', 'pickTotal']
+export function aggregateResults(steps, answers) {
+  const out = { trace: null, write: null, match: null, find: null, steps: Math.max(0, steps.length - 1), traceTries: 0, calcYes: 0, calcHelp: 0, calcNo: 0, pickRight: 0, pickTotal: 0 }
+  const rank = { yes: 0, help: 1, no: 2 }
+  steps.forEach((_, i) => {
+    const a = answers[i]; if (!a) return
+    if (a.type === 'trace') { out.trace = Math.max(out.trace ?? 0, a.score); out.traceTries += a.tries || 0 }
+    else if (a.type === 'write') out.write = out.write === null || rank[a.rating] > rank[out.write] ? a.rating : out.write       // the weakest rating counts
+    else if (a.type === 'match' || a.type === 'find') out[a.type] = out[a.type] === 'no' ? 'no' : a.ok ? 'yes' : 'no'
+    else if (a.type === 'pick') { out.pickTotal++; if (a.ok) out.pickRight++ }
+    else if (a.type === 'calc') { if (a.rating === 'yes') out.calcYes++; else if (a.rating === 'help') out.calcHelp++; else out.calcNo++ }
+  })
+  return out
 }

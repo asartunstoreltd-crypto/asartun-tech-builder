@@ -10,12 +10,39 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 //                     dot and an arrow showing the writing direction.
 //   guideMode         'faint' (default) | 'demo' (animates the guide being written, then stays) | 'none'
 //   replayKey         change it to replay the demo
+//   underlay          the work being marked, drawn beneath everything: {type:'image', img} or {type:'strokes', strokes}
+//   overlay           corrections drawn read-only on top (red pen / yellow highlighter), e.g. a teacher's marks
+//   initialStrokes    strokes to start with (a saved draft); they can be erased, undone as one clear
+//   penColor          colour of the pencil ('#111' default; teachers use red)
+//   highlighter       true adds a yellow highlighter tool (for marking mistakes)
 //   guide             optional faint text drawn under the writing
 //   tools             false hides the toolbar (read-only demonstrations)
 //   labels, disabled, onChange(strokes)
 // Ref: getStrokes(), isEmpty(), toBlob(type, quality), toDataURL(), reset()
 const PEN_W = 0.012          // relative to canvas width
 const ERASER_W = 0.045
+const HIGHLIGHT_W = 0.03
+const HIGHLIGHT = 'rgba(255, 214, 0, 0.38)'
+const RED = '#c0392b'
+
+// Paint pen / highlighter strokes. The eraser is only ever applied on the live layer (destination-out).
+function paintStrokes(c, strokes, w, h, color) {
+  c.lineCap = 'round'; c.lineJoin = 'round'
+  for (const st of strokes) {
+    if (st.tool === 'eraser') { c.globalCompositeOperation = 'destination-out' } else c.globalCompositeOperation = 'source-over'
+    const col = st.tool === 'highlight' ? HIGHLIGHT : color
+    c.strokeStyle = col; c.fillStyle = col; c.lineWidth = st.w * w
+    const p = st.pts
+    if (!p || !p.length) continue
+    if (p.length === 1) { c.beginPath(); c.arc(p[0][0] * w, p[0][1] * h, (st.w * w) / 2, 0, 7); c.fill(); continue }
+    c.beginPath(); c.moveTo(p[0][0] * w, p[0][1] * h)
+    for (let i = 1; i < p.length; i++) c.lineTo(p[i][0] * w, p[i][1] * h)
+    c.stroke()
+  }
+  c.globalCompositeOperation = 'source-over'
+}
+// strokes saved without a width (older or compact form) get the default width of their tool
+const withWidth = (strokes) => (strokes || []).map((st) => (st.w ? st : { ...st, w: st.tool === 'highlight' ? HIGHLIGHT_W : PEN_W }))
 const GUIDE = '#0d5c63'
 
 const lineLen = (p) => { let l = 0; for (let i = 1; i < p.length; i++) l += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); return l }
@@ -31,16 +58,17 @@ function pointAtFraction(p, f) {            // position and direction at fractio
 }
 
 const HandwritingCanvas = forwardRef(function HandwritingCanvas(
-  { height = 240, aspect, guideStrokes, guideMode = 'faint', replayKey = 0, guide = '', tools = true, labels = {}, disabled = false, onChange }, ref) {
+  { height = 240, aspect, guideStrokes, guideMode = 'faint', replayKey = 0, guide = '', tools = true, labels = {}, disabled = false, onChange, underlay, overlay, penColor = '#111', highlighter = false, initialStrokes }, ref) {
   const wrap = useRef(null)
   const canvas = useRef(null)
   const layer = useRef(null)                    // strokes live on their own layer so the eraser never rubs out the guide
-  const state = useRef({ strokes: [], past: [], future: [], cur: null, pointer: null, raf: 0, demoT: 1 })
+  const state = useRef({ strokes: withWidth(initialStrokes), past: [], future: [], cur: null, pointer: null, raf: 0, demoT: 1 })     // initialStrokes: a saved draft, restored once
   const [tool, setTool] = useState('pen')
   const [, bump] = useState(0)
   const rerender = () => bump((n) => n + 1)
   const gs = useRef(guideStrokes); gs.current = guideStrokes
   const gm = useRef(guideMode); gm.current = guideMode
+  const extra = useRef({}); extra.current = { underlay, overlay, penColor }
 
   const drawGuide = (c, w, h) => {
     const strokes = gs.current
@@ -79,22 +107,15 @@ const HandwritingCanvas = forwardRef(function HandwritingCanvas(
     const w = cv.width, h = cv.height
     if (!layer.current) layer.current = document.createElement('canvas')
     const ly = layer.current; ly.width = w; ly.height = h
-    const lc = ly.getContext('2d'); lc.lineCap = 'round'; lc.lineJoin = 'round'
+    const lc = ly.getContext('2d')
     const s = state.current
-    const all = s.cur ? [...s.strokes, s.cur] : s.strokes
-    for (const st of all) {
-      lc.globalCompositeOperation = st.tool === 'eraser' ? 'destination-out' : 'source-over'
-      lc.strokeStyle = '#111'; lc.fillStyle = '#111'
-      lc.lineWidth = st.w * w
-      const p = st.pts
-      if (p.length === 1) { lc.beginPath(); lc.arc(p[0][0] * w, p[0][1] * h, (st.w * w) / 2, 0, 7); lc.fill(); continue }
-      lc.beginPath(); lc.moveTo(p[0][0] * w, p[0][1] * h)
-      for (let i = 1; i < p.length; i++) lc.lineTo(p[i][0] * w, p[i][1] * h)
-      lc.stroke()
-    }
+    paintStrokes(lc, s.cur ? [...s.strokes, s.cur] : s.strokes, w, h, extra.current.penColor)
     const c = cv.getContext('2d')
     c.globalCompositeOperation = 'source-over'
     c.fillStyle = '#fff'; c.fillRect(0, 0, w, h)
+    const ul = extra.current.underlay
+    if (ul && ul.type === 'image' && ul.img) c.drawImage(ul.img, 0, 0, w, h)
+    else if (ul && ul.type === 'strokes') paintStrokes(c, withWidth(ul.strokes), w, h, '#111')
     if (guide) {
       c.fillStyle = 'rgba(0,0,0,0.12)'; c.textAlign = 'center'; c.textBaseline = 'middle'
       c.font = `${Math.round(h * 0.7)}px system-ui, sans-serif`
@@ -102,6 +123,8 @@ const HandwritingCanvas = forwardRef(function HandwritingCanvas(
     }
     drawGuide(c, w, h)
     c.drawImage(ly, 0, 0)
+    const ov = extra.current.overlay
+    if (ov && ov.length) paintStrokes(c, withWidth(ov), w, h, RED)
   }, [guide])                                   // eslint-disable-line react-hooks/exhaustive-deps
 
   const schedule = useCallback(() => {
@@ -124,6 +147,8 @@ const HandwritingCanvas = forwardRef(function HandwritingCanvas(
     ro?.observe(el)
     return () => { ro?.disconnect(); cancelAnimationFrame(state.current.raf) }
   }, [height, aspect, draw])
+
+  useEffect(() => { draw() }, [underlay, overlay, penColor, draw])
 
   // redraw when the guide changes; run the demonstration animation
   useEffect(() => {
@@ -154,7 +179,7 @@ const HandwritingCanvas = forwardRef(function HandwritingCanvas(
     if (s.pointer !== null) return                        // ignore a second finger / resting palm while writing
     s.pointer = e.pointerId
     try { canvas.current.setPointerCapture(e.pointerId) } catch { /* not fatal */ }
-    s.cur = { tool, w: tool === 'eraser' ? ERASER_W : PEN_W, pts: [pos(e)] }
+    s.cur = { tool, w: tool === 'eraser' ? ERASER_W : tool === 'highlight' ? HIGHLIGHT_W : PEN_W, pts: [pos(e)] }
     schedule(); e.preventDefault()
   }
   const move = (e) => {
@@ -181,7 +206,7 @@ const HandwritingCanvas = forwardRef(function HandwritingCanvas(
 
   useImperativeHandle(ref, () => ({
     getStrokes: () => state.current.strokes,
-    isEmpty: () => state.current.strokes.filter((x) => x.tool === 'pen').length === 0,
+    isEmpty: () => state.current.strokes.filter((x) => x.tool !== 'eraser').length === 0,
     toDataURL: () => canvas.current.toDataURL('image/png'),
     toBlob: (type = 'image/png', quality = 0.8) => new Promise((res) => canvas.current.toBlob(res, type, quality)),
     reset: () => { const s = state.current; s.strokes = []; s.past = []; s.future = []; s.cur = null; onChange?.([]); draw(); rerender() },
@@ -193,6 +218,7 @@ const HandwritingCanvas = forwardRef(function HandwritingCanvas(
       {tools && (
         <div className="hw-tools" role="toolbar">
           <button type="button" className={'hw-btn' + (tool === 'pen' ? ' on' : '')} onClick={() => setTool('pen')} aria-pressed={tool === 'pen'}>{labels.pencil || 'Pencil'}</button>
+          {highlighter && <button type="button" className={'hw-btn' + (tool === 'highlight' ? ' on' : '')} onClick={() => setTool('highlight')} aria-pressed={tool === 'highlight'}>{labels.highlight || 'Highlight'}</button>}
           <button type="button" className={'hw-btn' + (tool === 'eraser' ? ' on' : '')} onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'}>{labels.eraser || 'Eraser'}</button>
           <button type="button" className="hw-btn" onClick={undo} disabled={!s.past.length}>{labels.undo || 'Undo'}</button>
           <button type="button" className="hw-btn" onClick={redo} disabled={!s.future.length}>{labels.redo || 'Redo'}</button>

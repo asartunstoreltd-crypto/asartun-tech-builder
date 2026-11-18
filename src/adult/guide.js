@@ -44,27 +44,23 @@ export const GLYPHS = {
   'Ƴ': [[[2, 24], [7, 11], [26, 5]], [[26, 5], [50, 50]], [[90, 5], [50, 50], [50, 95]]],
   Z: [[[15, 5], [85, 5], [15, 95], [85, 95]]],
   '.': [arc(10, 90, 6, 6, 0, 360, 10)],
+  // digits (Phase 5): same 100 box, same rules
+  0: [arc(50, 50, 32, 45, -90, -450, 28)],
+  1: [[[28, 28], [55, 5], [55, 95]]],
+  2: [[...arc(50, 28, 32, 23, 180, 360, 10), [62, 58], [18, 95], [85, 95]]],
+  3: [[...arc(50, 27, 30, 22, -150, 90, 12), ...arc(50, 72, 34, 23, -90, 150, 12)]],
+  4: [[[70, 5], [10, 65], [90, 65]], [[65, 5], [65, 95]]],
+  5: [[[78, 5], [28, 5], [22, 48], ...arc(48, 70, 34, 25, -110, 150, 14)]],
+  6: [[[72, 8], [35, 28], [20, 62], ...arc(48, 72, 28, 23, 180, 540, 22)]],
+  7: [[[15, 5], [85, 5], [40, 95]]],
+  8: [arc(50, 27, 27, 22, 90, 450, 20), arc(50, 72, 32, 23, -90, 270, 22)],
+  9: [[...arc(50, 28, 28, 23, 0, -360, 22), [78, 28], [76, 60], [55, 90], [25, 95]]],
 }
-// Digits 0-9 (Phase 5), kept in their own table so the letter tables and letter tests stay exactly as they were.
-// Plain, open shapes that are easy to follow with a finger. 0 is narrower than the letter O so the two stay distinct.
-export const DIGIT_GLYPHS = {
-  '0': [arc(50, 50, 32, 45, -90, -450, 28)],
-  '1': [[[28, 28], [52, 5], [52, 95]]],
-  '2': [[...arc(50, 28, 32, 23, 180, 400, 16), [15, 95], [85, 95]]],
-  '3': [[...arc(48, 27, 30, 22, 200, 450, 14), ...arc(48, 72, 34, 23, -90, 150, 14)]],
-  '4': [[[65, 5], [10, 68], [88, 68]], [[65, 5], [65, 95]]],
-  '5': [[[25, 5], [20, 48], ...arc(46, 70, 34, 25, -125, 150, 14)], [[25, 5], [80, 5]]],
-  '6': [[[72, 8], [38, 28], [20, 68], ...arc(50, 68, 30, 27, 180, 540, 24)]],
-  '7': [[[15, 5], [85, 5], [40, 95]]],
-  '8': [arc(50, 27, 27, 22, -90, -450, 20), arc(50, 72, 32, 23, -90, -450, 20)],
-  '9': [arc(50, 32, 30, 27, 0, -360, 22), [[80, 32], [72, 70], [40, 95]]],
-}
-export const DIGITS = Object.keys(DIGIT_GLYPHS)
-const GUIDED = { ...GLYPHS, ...DIGIT_GLYPHS }                  // everything that can be traced
 const ADVANCE = { ' ': 60, '.': 30 }                           // everything else: 110 (100 wide + 10 gap)
 const adv = (ch) => ADVANCE[ch] ?? 110
-export const HAUSA_LETTERS = Object.keys(GLYPHS).filter((c) => c !== '.')
-export const canGuide = (text) => [...String(text).toUpperCase()].every((c) => c === ' ' || c === '\n' || GUIDED[c])
+export const HAUSA_LETTERS = Object.keys(GLYPHS).filter((c) => /\p{L}/u.test(c))
+export const DIGITS = '0123456789'.split('')
+export const canGuide = (text) => [...String(text).toUpperCase()].every((c) => c === ' ' || c === '\n' || GLYPHS[c])
 
 // text -> strokes in the canvas's own 0..1 coordinates (so they can be drawn on a canvas of that shape).
 // Use \n to start a new line (the lessons put one word per line for sentences). aspect = canvas width / height.
@@ -84,7 +80,7 @@ export function layoutText(text, aspect, pad = 0.1) {
     const left = (aspect - widths[li] * s) / 2, y0 = li * 140
     let x0 = 0
     row.forEach((c) => {
-      for (const st of GUIDED[c] || []) strokes.push({ letter: idx, pts: st.map(([x, y]) => [(left + (x0 + x) * s) / aspect, top + (y0 + y) * s]) })
+      for (const st of GLYPHS[c] || []) strokes.push({ letter: idx, pts: st.map(([x, y]) => [(left + (x0 + x) * s) / aspect, top + (y0 + y) * s]) })
       x0 += adv(c); idx++
     })
   })

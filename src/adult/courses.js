@@ -1,11 +1,13 @@
-// The two lesson courses, so the lesson list and the player can serve either one.
+// The adult courses in one place, so the lesson list, lesson player and facilitator screens treat them alike.
 import * as lit from './curriculum.js'
 import * as num from './numeracy.js'
 
-export const COURSE_DEFS = {
-  'basic-literacy': { slug: lit.COURSE_SLUG, kind: 'literacy', units: lit.UNITS, lessons: lit.LESSONS, listPath: '/adult/learn', startField: 'literacy', first: lit.firstLessonFor, byKey: lit.lessonByKey, next: lit.nextLesson, numeracy: false },
-  'basic-numeracy': { slug: num.COURSE_SLUG, kind: 'numeracy', units: num.UNITS, lessons: num.LESSONS, listPath: '/adult/numeracy', startField: 'numeracy', first: num.firstLessonFor, byKey: num.lessonByKey, next: num.nextLesson, numeracy: true },
+export const COURSES = {
+  [lit.COURSE_SLUG]: { slug: lit.COURSE_SLUG, kind: 'literacy', units: lit.UNITS, lessons: lit.LESSONS, route: '/adult/learn', titleKey: 'lessonsTitle' },
+  [num.COURSE_SLUG]: { slug: num.COURSE_SLUG, kind: 'numeracy', units: num.UNITS, lessons: num.LESSONS, route: '/adult/numeracy', titleKey: 'numeracyTitle' },
 }
-// Lesson keys are unique across both courses (tests check it), so a key alone says which course a lesson belongs to.
-export const courseOfKey = (k) => Object.values(COURSE_DEFS).find((c) => c.byKey(k)) || null
-export const lessonAny = (k) => { const c = courseOfKey(k); return c ? c.byKey(k) : null }
+export const ALL_LESSONS = Object.values(COURSES).flatMap((c) => c.lessons)
+export const lessonByKey = (k) => ALL_LESSONS.find((l) => l.key === k) || null
+export const courseOfLesson = (k) => Object.values(COURSES).find((c) => c.lessons.some((l) => l.key === k)) || null
+export const nextInCourse = (k) => { const c = courseOfLesson(k); if (!c) return null; const i = c.lessons.findIndex((l) => l.key === k); return c.lessons[i + 1] || null }
+export const firstLessonOf = (course, start) => (course.units.find((u) => u.start === start) || course.units[0]).lessons[0]

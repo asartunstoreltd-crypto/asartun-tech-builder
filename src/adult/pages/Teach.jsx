@@ -6,13 +6,13 @@ import { useAdult } from '../AdultAuth.jsx'
 import { normalizePhone } from '../phone.js'
 import Assessment, { AssessmentResult } from './Assessment.jsx'
 import { LangSwitch } from './Public.jsx'
-import { lessonAny } from '../courses.js'
-import { UNITS as NUM_UNITS, SKILLS } from '../numeracy.js'
-import { calcEvidence, needsPractice, unitEvidence } from '../progress.js'
+import WorkTab from './TeachWork.jsx'
+import { lessonByKey } from '../courses.js'
+import { needsPractice } from '../progress.js'
 
 // Facilitator / adult-admin area. The screen only hides things for convenience;
 // the database decides which learners and classes each person may see.
-const E = (t, code) => t({ network: 'errNetwork', denied: 'errDenied', ALREADY: 'errAlready', PHONE: 'errPhone', NAME: 'errName', PIN: 'errPin', CLASS_REQUIRED: 'errClassRequired', config: 'errConfig' }[code] || 'errGeneric')
+const E = (t, code) => t({ network: 'errNetwork', denied: 'errDenied', CLASS_CLOSED: 'errClassClosed', ALREADY: 'errAlready', PHONE: 'errPhone', NAME: 'errName', PIN: 'errPin', CLASS_REQUIRED: 'errClassRequired', config: 'errConfig' }[code] || 'errGeneric')
 
 export default function Teach() {
   const { t } = useAdult()
@@ -63,13 +63,14 @@ function StaffLogin() {
 function Dashboard({ role }) {
   const { t } = useAdult()
   const [tab, setTab] = useState('learners')
-  const tabs = [['learners', 'tLearners'], ['classes', 'tClasses'], ...(role === 'adult_admin' ? [['staff', 'tStaff']] : [])]
+  const tabs = [['learners', 'tLearners'], ['classes', 'tClasses'], ['work', 'tWork'], ...(role === 'adult_admin' ? [['staff', 'tStaff']] : [])]
   return (
     <div className="ad-page wide">
       <div className="ad-row"><h1>{t('forFacilitators')}</h1><button className="ad-link" onClick={() => supabaseStaff.auth.signOut()}>{t('signOut')}</button></div>
       <div className="ad-subtabs" role="tablist">{tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(l)}</button>)}</div>
       {tab === 'learners' && <Learners role={role} />}
       {tab === 'classes' && <Classes role={role} />}
+      {tab === 'work' && <WorkTab />}
       {tab === 'staff' && <StaffTab />}
     </div>
   )
@@ -157,12 +158,10 @@ function LearnerDetail({ id, onBack }) {
       </div>
       <h3>{t('lessonsHeading')}</h3>
       {(d.progress || []).length === 0 ? <p className="ad-note">{t('noProgress')}</p> :
-        <ul className="ad-list">{d.progress.map((r) => { const l = lessonAny(r.lesson_key); const ev = calcEvidence(r); return (
+        <ul className="ad-list">{d.progress.map((r) => { const l = lessonByKey(r.lesson_key); return (
           <li key={r.lesson_key}><div className="ad-listrow"><strong>{l ? t(l.title.key, l.title.vars) : r.lesson_key}</strong>
-            <span>{r.status === 'completed' ? '✓' : '•'} {r.attempts}×{r.best_trace != null ? ' · ' + t('traceLabel', { pct: Math.round(r.best_trace * 100) }) : ''}{r.write_rating ? ' · ' + ({ yes: t('canDo'), help: t('canHelp'), no: t('cannot') })[r.write_rating] : ''}</span>
-            {ev.status !== 'none' && <span className="ad-note">{[ev.self !== null ? t('calcSelfLabel', { pct: Math.round(ev.self * 100) }) : '', ev.quiz !== null ? t('calcQuizLabel', { pct: Math.round(ev.quiz * 100) }) : ''].filter(Boolean).join(' · ')} — {t(EV_KEY[ev.status])}</span>}
+            <span>{r.status === 'completed' ? '✓' : '•'} {r.attempts}×{r.best_trace != null ? ' · ' + t('traceLabel', { pct: Math.round(r.best_trace * 100) }) : ''}{r.best_calc != null ? ' · ' + t('calcLabel', { pct: Math.round(r.best_calc * 100) }) : ''}{r.write_rating ? ' · ' + ({ yes: t('canDo'), help: t('canHelp'), no: t('cannot') })[r.write_rating] : ''}</span>
             {needsPractice(r) && <span className="ad-tag">{t('needsPracticeLabel')}</span>}</div></li>) })}</ul>}
-      <SkillPanel learnerId={id} progress={d.progress || []} skills={d.skills || []} onSaved={load} />
       <h3>{t('lastAssessment')}</h3>
       {last ? <><p className="ad-note">{new Date(last.created_at).toLocaleDateString()} · {t(last.mode === 'assisted' ? 'modeAssisted' : 'modeSelf')}</p>
         <AssessmentResult recommended={last.recommended} scores={last.scores} needsConfirmation={last.needs_confirmation} /></> : <p className="ad-note">{t('noAssessmentYet')}</p>}
@@ -170,43 +169,10 @@ function LearnerDetail({ id, onBack }) {
   )
 }
 
-const EV_KEY = { none: 'evNone', practise: 'evPractise', building: 'evBuilding', shown: 'evShown', mismatch: 'evMismatch' }
-const RESULT_KEY = { can: 'skillCan', with_help: 'skillHelp', not_yet: 'skillNot' }
-
-// A facilitator watches the learner calculate and records it. Only this is shown as "confirmed"; the app's own numbers are evidence, not proof.
-function SkillPanel({ learnerId, progress, skills, onSaved }) {
-  const { t } = useAdult()
-  const [note, setNote] = useState({}); const [msg, setMsg] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState('')
-  const byKey = Object.fromEntries(progress.map((r) => [r.lesson_key, r]))
-  const save = async (skill, result) => {
-    setErr(''); setMsg(''); setBusy(skill)
-    const { error } = await staffApi.confirmSkill(learnerId, skill, result, note[skill])
-    setBusy(''); if (error) setErr(E(t, error)); else { setMsg(t('skillSaved')); setNote((n) => ({ ...n, [skill]: '' })); onSaved() }
-  }
-  return (
-    <section>
-      <h3>{t('skillTitle')}</h3>
-      <p className="ad-note">{t('skillHow')}</p>
-      {err && <p className="ad-error" role="alert">{err}</p>}{msg && <p className="ad-ok" role="status">{msg}</p>}
-      {SKILLS.map((sk) => {
-        const unit = NUM_UNITS.find((u) => u.id === sk); const ue = unitEvidence(unit, byKey); const last = skills.find((x) => x.skill === sk)
-        return (
-          <div className="ad-card" key={sk}>
-            <strong>{t(unit.titleKey)}</strong>
-            <p className="ad-note">{t('unitProgress', { done: ue.done, total: ue.total })} · {t(EV_KEY[ue.check])}</p>
-            <p className="ad-note">{last ? t(RESULT_KEY[last.result]) + ' · ' + new Date(last.created_at).toLocaleDateString() : t('skillNever')}</p>
-            <input value={note[sk] || ''} maxLength={300} placeholder={t('skillNote')} aria-label={t('skillNote')} onChange={(e) => setNote((n) => ({ ...n, [sk]: e.target.value }))} />
-            <div className="ad-row">{Object.keys(RESULT_KEY).map((r) => <button key={r} className="ad-btn" disabled={busy === sk} onClick={() => save(sk, r)}>{t(RESULT_KEY[r])}</button>)}</div>
-          </div>)
-      })}
-    </section>
-  )
-}
-
 function Classes({ role }) {
   const { t, lang } = useAdult()
   const [rows, setRows] = useState([]); const [courses, setCourses] = useState([]); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
-  const [f, setF] = useState({ name: '', course: '', mode: 'physical', location: '' }); const [phone, setPhone] = useState({}); const [email, setEmail] = useState({})
+  const [f, setF] = useState({ name: '', course: '', mode: 'physical', location: '' }); const [phone, setPhone] = useState({}); const [email, setEmail] = useState({}); const [closing, setClosing] = useState('')
   const load = useCallback(async () => { const [c, k] = await Promise.all([staffApi.classes(), staffApi.courses()]); setRows(c.data || []); setCourses(k.data || []); setErr(c.error ? E(t, c.error) : '') }, [t])
   useEffect(() => { load() }, [load])
   const run = async (p, ok) => { setMsg(''); setErr(''); const { error } = await p; if (error) setErr(E(t, error)); else { setMsg(ok); load() } }
@@ -227,6 +193,9 @@ function Classes({ role }) {
           <h3>{c.name}</h3><p className="ad-note">{t('mode' + c.mode[0].toUpperCase() + c.mode.slice(1))}{c.location ? ' · ' + c.location : ''}</p>
           <div className="ad-row"><input inputMode="tel" placeholder={t('phone')} value={phone[c.id] || ''} onChange={(e) => setPhone({ ...phone, [c.id]: e.target.value })} />
             <button className="ad-btn" disabled={!normalizePhone(phone[c.id] || '')} onClick={() => run(staffApi.addMember(c.id, normalizePhone(phone[c.id])), t('saved'))}>{t('addLearner')}</button></div>
+          {c.status === 'active' && (closing === c.id
+            ? <div className="ad-card"><p className="ad-error">{t('closeClassSure')}</p><button className="ad-btn" onClick={() => { setClosing(''); run(staffApi.closeClass(c.id), t('saved')) }}>{t('closeClassYes')}</button><button className="ad-link" onClick={() => setClosing('')}>{t('cancel')}</button></div>
+            : <button className="ad-link" onClick={() => setClosing(c.id)}>{t('closeClass')}</button>)}
           {role === 'adult_admin' && <div className="ad-row"><input type="email" placeholder={t('facilitatorEmail')} value={email[c.id] || ''} onChange={(e) => setEmail({ ...email, [c.id]: e.target.value })} />
             <button className="ad-btn" disabled={!email[c.id]} onClick={() => run(staffApi.assignFacilitator(c.id, email[c.id]), t('saved'))}>{t('assign')}</button></div>}
         </div>))}
