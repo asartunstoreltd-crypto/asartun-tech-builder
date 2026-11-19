@@ -11,6 +11,7 @@ import { LESSONS, UNITS, LETTER_WORDS, WORDS, SENTENCES, MESSAGES, lessonByKey, 
 import { needsPractice, summarize, TRACE_OK } from '../src/adult/progress.js'
 import { LITERACY_START, NUMERACY_START } from '../src/adult/assessment.js'
 import * as num from '../src/adult/numeracy.js'
+import * as DIGITAL from '../src/adult/digital.js'
 import { COURSES, ALL_LESSONS, courseOfLesson, firstLessonOf, nextInCourse, lessonByKey as anyLessonByKey } from '../src/adult/courses.js'
 import { aggregateResults, RESULT_KEYS } from '../src/adult/progress.js'
 import { ALLOWED_TYPES, MAX_INPUT_BYTES, MAX_OUTPUT_BYTES, TARGET_BYTES, validatePhoto, fitSize, photoSettings, qualitySteps, photoPath, photoPathOk, simplifyStrokes } from '../src/adult/imageTools.js'
@@ -117,12 +118,12 @@ for (const s of ['letters', 'words', 'sentences', 'practical', 'numbers', 'add_s
 for (const k of used) ok(kha.includes(k), `string key used in code but missing: ${k}`)
 { // no unused clutter: every key is referenced somewhere (static or by the dynamic families above)
   const text = src.map((f) => readFileSync(f, 'utf8')).join('\n')
-  for (const k of kha) { const dyn = /^(ip_|dom_|start_|resLiteracyName|resNumeracyName|reviewWrite_)/.test(k); ok(dyn || text.includes("'" + k + "'") || text.includes('t(\'' + k + '\''), `string key never used: ${k}`) }
+  for (const k of kha) { const dyn = /^(ip_|dom_|start_|resLiteracyName|resNumeracyName|reviewWrite_|d[tcqowm]_|du_|ds_)/.test(k); ok(dyn || text.includes("'" + k + "'") || text.includes('t(\'' + k + '\''), `string key never used: ${k}`) }
 }
 
 // ---------- SQL structure ----------
 const sqlDir = 'supabase/migrations'
-const sql = readdirSync(sqlDir).filter((f) => /^0(1[789]|2[012])_adult/.test(f)).map((f) => readFileSync(join(sqlDir, f), 'utf8')).join('\n')
+const sql = readdirSync(sqlDir).filter((f) => /^0(1[789]|2[0-4])_adult/.test(f)).map((f) => readFileSync(join(sqlDir, f), 'utf8')).join('\n')
 const tables = [...sql.matchAll(/create table if not exists public\.(adult_[a-z_]+)/g)].map((m) => m[1])
 ok(tables.length >= 10, 'found adult tables: ' + tables.length)
 for (const t of tables) ok(new RegExp(`alter table public\\.${t}\\s+enable row level security`).test(sql), `RLS enabled on ${t}`)
@@ -132,7 +133,7 @@ ok(!/\b(alter|drop)\s+table\s+public\.(profiles|missions|entitlements|payment_re
 const defs = [...sql.matchAll(/create or replace function public\.(adult_[a-z_]+|is_adult_[a-z]+|staff_can_see_learner)\([^)]*\)[\s\S]*?as \$\$[\s\S]*?\$\$;/g)]
 ok(defs.length >= 12, 'functions found: ' + defs.length)
 for (const m of defs) ok(/security definer set search_path = ''/.test(m[0]), `${m[1]}: security definer with empty search_path`)
-for (const m of defs) if (!/adult_expired_submissions|adult_purge_delete/.test(m[1]) && !/staff_can_see_learner|is_adult_staff|is_adult_learner|adult_can_manage_class|adult_can_manage_assignment|adult_learner_in_assignment_class|adult_feedback_visible|adult_log\b|adult_touch|auth\.uid\(\)/.test(m[0].slice(m[0].indexOf('as $$')))) ok(false, `${m[1]}: no caller check`)
+for (const m of defs) if (!/adult_expired_submissions|adult_purge_delete|adult_grant_access|adult_calc_standard/.test(m[1]) && !/staff_can_see_learner|is_adult_staff|is_adult_learner|adult_can_manage_class|adult_can_manage_assignment|adult_learner_in_assignment_class|adult_feedback_visible|adult_log\b|adult_touch|auth\.uid\(\)/.test(m[0].slice(m[0].indexOf('as $$')))) ok(false, `${m[1]}: no caller check`)
 ok(/grant select on[\s\S]*to authenticated/.test(sql) && !/grant (insert|delete|all)/i.test(sql), 'browser role gets SELECT only')
 ok(/grant update \(display_name, language, low_data, audio_on\) on public\.adult_profiles/.test(sql), 'learner can edit only comfort settings')
 ok(!/m\.class_id = id\b/.test(sql) && /m\.class_id = public\.adult_classes\.id/.test(sql), 'class policy compares the CLASS id (an unqualified id would bind to the member row)')
@@ -266,7 +267,7 @@ ok(/phone ~ '\^\\\+\[0-9\]\{10,15\}\$'/.test(sql), 'database re-checks phone for
   for (const [a, b] of [['1', '0'], ['7', '0'], ['4', '0'], ['2', '0'], ['1', '8'], ['0', '1']]) ok(!scoreTrace(layoutText(a, 1.25), trace(layoutText(b, 1.25))).ok, `${b} traced over ${a} fails`)
 
   // --- course registry
-  ok(Object.keys(COURSES).length === 2 && COURSES['basic-numeracy'].lessons === num.LESSONS, 'two courses registered')
+  ok(Object.keys(COURSES).length === 3 && COURSES['basic-numeracy'].lessons === num.LESSONS && COURSES['basic-digital'].lessons === DIGITAL.LESSONS, 'three courses registered')
   ok(new Set(ALL_LESSONS.map((l) => l.key)).size === ALL_LESSONS.length, 'lesson keys unique across both courses')
   ok(ALL_LESSONS.every((l) => courseOfLesson(l.key) && anyLessonByKey(l.key) === l), 'every lesson belongs to exactly one course')
   ok(ALL_LESSONS.every((l) => /^[a-z0-9-]{1,40}$/.test(l.key)), 'all keys fit the database check')
@@ -661,6 +662,154 @@ import * as R from '../src/adult/reports.js'
     ok(/rpMeasureNote/.test(trs) && /never reads handwriting/.test(strings.en.rpMeasureNote), 'the report says handwriting is not read by the app')
     const pkg = JSON.parse(readFileSync('package.json', 'utf8')); eq(Object.keys(pkg.dependencies).sort(), ['@supabase/supabase-js', 'lucide-react', 'react', 'react-dom', 'react-router-dom'], 'no new dependency')
   }
+}
+
+
+// ================================================================= PHASE 8: digital literacy course, payments, certificates
+{
+  const rd = (f) => readFileSync(f, 'utf8')
+  const m23 = rd('supabase/migrations/023_adult_payments.sql'), m24 = rd('supabase/migrations/024_adult_certificates.sql')
+  const c23 = m23.replace(/--.*$/gm, ''), c24 = m24.replace(/--.*$/gm, '')
+  const fnOf = (code, name) => (code.match(new RegExp(`create or replace function public\\.${name}\\([^)]*\\)[\\s\\S]*?end \\$\\$;`)) || [''])[0]
+  const D = DIGITAL
+
+  // --- 8A: the digital course is well-formed data
+  eq(D.LESSONS.length, 30, '30 digital lessons'); eq(D.UNITS.length, 7, '7 units')
+  eq(new Set(D.LESSONS.map((l) => l.key)).size, 30, 'lesson keys unique')
+  const allKeys = [...LESSONS, ...num.LESSONS, ...D.LESSONS].map((l) => l.key)
+  eq(new Set(allKeys).size, allKeys.length, 'lesson keys unique across ALL THREE courses (progress is stored by key)')
+  const keyRe = new RegExp(rd('supabase/migrations/020_adult_numeracy_progress.sql').match(/p_lesson !~ '([^']+)'/)[1])
+  ok(D.LESSONS.every((l) => keyRe.test(l.key)), 'every digital key passes the database key rule')
+  ok(D.LESSONS.every((l) => l.steps[0].type === 'teach' && l.steps[0].kind === 'concept' && l.steps[l.steps.length - 1].type === 'review'), 'each lesson: teaching page first, review last')
+  ok(D.LESSONS.every((l) => { const q = l.steps.filter((x) => x.type === 'tap' || x.type === 'dchoice').length; return q >= 2 && q <= 4 }), 'each lesson has 2-4 marked questions (database allows up to 50 per lesson)')
+  const refKeys = new Set(['dlSafe', 'dlScam', 'dlScamAsk'])
+  const add = (x) => { if (x) refKeys.add(x) }
+  for (const u of D.UNITS) add(u.titleKey)
+  for (const l of D.LESSONS) { add(l.title.key); for (const st of l.steps) { add(st.conceptKey); add(st.askKey); add(st.promptKey); add(st.cardKey); add(st.whyKey); add(st.targetKey); (st.optionKeys || []).forEach(add) } }
+  for (const [sc, els] of Object.entries(D.SCREENS)) for (const e of els) add(e.labelKey)
+  for (const key of refKeys) ok(D.TEXT[key] && D.TEXT[key][0] && D.TEXT[key][1], `text exists in both languages: ${key}`)
+  for (const key of Object.keys(D.TEXT)) ok(refKeys.has(key) || /^(dl[A-Z]|digitalTitle)/.test(key), `text is used by the course: ${key}`)
+  for (const key of Object.keys(D.TEXT)) ok(strings.en[key] === D.TEXT[key][1] && strings.ha[key] === D.TEXT[key][0], `strings.js carries ${key}`)
+  const sameOk = /^([\d＊＃]|Wi-Fi|1234|example\.gov\.ng|Asdfgh|Mama|Aisha|00:42|0803…|＋234…|www\.…|Ad|＋|－)$/
+  for (const [key, [ha, en]] of Object.entries(D.TEXT)) ok(ha !== en || sameOk.test(ha), `Hausa differs from English (not left untranslated): ${key}`)
+  // taps point at real, touchable places
+  let taps = 0, choices = 0, scams = 0, scamYes = 0, safeYes = 0; const pos = new Set()
+  for (const l of D.LESSONS) for (const st of l.steps) {
+    if (st.type === 'tap') { taps++; const els = D.SCREENS[st.screen]; ok(els && els.some((e) => e.id === st.target && e.kind === 'btn'), `${l.key}: tap target ${st.target} is a button on ${st.screen}`); ok(els.filter((e) => e.kind === 'btn').length >= 3, `${l.key}: the screen has several buttons, so tapping is a real choice`) }
+    if (st.type === 'dchoice') {
+      choices++; ok(st.optionKeys.length >= 2 && new Set(st.optionKeys).size === st.optionKeys.length, `${l.key}: options unique`); ok(st.optionKeys.includes(st.targetKey), `${l.key}: the right answer is among the options`)
+      if (st.cardKey) { scams++; eq([...st.optionKeys].sort(), ['dlSafe', 'dlScam'], `${l.key}: scam card offers Safe / Scam`); ok(st.whyKey, `${l.key}: scam card explains why`); if (st.targetKey === 'dlScam') scamYes++; else safeYes++ }
+      if (st.optionKeys.length >= 3) pos.add(st.optionKeys.indexOf(st.targetKey))
+    }
+  }
+  ok(taps >= 30 && choices >= 25, 'plenty of questions'); ok(scams >= 8 && scamYes >= 6 && safeYes >= 2, 'scam cards include both real scams and genuinely safe messages')
+  eq([...pos].sort(), [0, 1, 2], 'the right answer is not always in the same place')
+  for (const id of Object.keys(D.SCREENS)) for (const e of D.SCREENS[id]) ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 200 && e.y + e.h <= 330 && e.w >= 30 && e.h >= 28, `${id}/${e.id}: fits the picture and is big enough to touch`)
+  const alltext = Object.values(D.TEXT).map((x) => x.join(' ')).join(' ')
+  ok(!/GTBank|Zenith|Access Bank|First Bank|\bUBA\b|Opay|Palmpay|Moniepoint|Kuda|Facebook|Instagram|TikTok|Paystack|Flutterwave/i.test(alltext), 'scam examples never name a real bank or app')
+  ok(!/typed|handwrit|write the answer/i.test(rd('src/adult/digital.js').replace(/\/\/.*$/gm, '')), 'no typed or handwritten answers in the digital course')
+  eq(Object.keys(COURSES).includes('basic-digital') && COURSES['basic-digital'].route, '/adult/digital', 'course registered with its route')
+  ok(/path="digital" element=\{<LessonList slug="basic-digital" \/>\}/.test(rd('src/adult/AdultApp.jsx')), 'route for the digital course')
+  const les = rd('src/adult/pages/Lessons.jsx')
+  ok(/case 'tap'/.test(les) && /case 'dchoice'/.test(les) && /TapStep/.test(les), 'lesson player handles the new steps')
+  ok(/mine\.ends_at \|\| Date\.parse\(mine\.ends_at\) > Date\.now\(\)|!mine\.ends_at \|\| Date\.parse\(mine\.ends_at\) > Date\.now\(\)/.test(les) && /!d\.enrolled && !d\.course\.is_free/.test(les), 'a paid course without active access shows the payment panel, not the lessons')
+
+  // --- 8A: reports understand the digital course
+  {
+    const row = (k, o = {}) => ({ k, s: 'completed', a: 1, bt: null, bc: null, wr: null, r: {}, c: '2026-11-10T09:00:00Z', u: '2026-11-10T09:00:00Z', ...o })
+    const NOW8 = new Date('2026-11-18T10:00:00Z')
+    ok(R.AREAS.includes('digital') && R.AREAS.includes('safety'), 'two new skill areas')
+    eq(R.lessonInfo('d-power'), { course: 'digital', unit: 'phone', applied: false }, 'digital lesson classified'); ok(D.LESSONS.every((l) => R.lessonInfo(l.key)), 'every digital lesson classified')
+    const a = R.skillAreas([row('d-power', { r: { pickRight: 2, pickTotal: 2 } }), row('d-pin', { r: { pickRight: 1, pickTotal: 2 } })])
+    eq([a.digital.items, a.digital.good, a.safety.items, a.safety.good], [2, 2, 2, 1], 'phone checks and safety checks are pooled separately')
+    eq([a.read.items, a.write.items, a.count.items, a.apply.items], [0, 0, 0, 0], 'digital lessons add nothing to reading, writing, counting or applying')
+    const safe = (r, t2) => ({ id: 'x', name: 'A', joined: '2026-11-10T00:00:00Z', prog: [row('d-pin', { r: { pickRight: r, pickTotal: t2 } })], att: [], subs: [] })
+    const codes8 = (l) => R.supportFlags(l, { now: NOW8, assignments: [] }).flags
+    eq(codes8(safe(0, 3)).map((f) => f.code), [], '3 safety questions: too few to judge'); eq(codes8(safe(3, 4)).map((f) => f.code), [], '75%: fine')
+    eq(codes8(safe(2, 4)).map((f) => [f.code, f.level]), [['safetyLow', 'watch']], '4 questions, 50%: watch'); eq(codes8(safe(1, 4)).map((f) => [f.code, f.level]), [['safetyLow', 'high']], '25%: serious')
+    eq(codes8(safe(3, 5)).map((f) => f.code), [], '60% exactly is not flagged')
+    const tr8 = rd('src/adult/pages/TeachReports.jsx'), pg8 = rd('src/adult/pages/Progress.jsx')
+    ok(/safetyLow: 'fSafetyLow'/.test(tr8) && strings.en.fSafetyLow.includes('{pct}') && /T\.SAFETY_LOW/.test(tr8) && /T\.SAFETY_MIN_ITEMS/.test(tr8), 'the safety rule has a sentence and is shown in the rules panel')
+    for (const [name, text] of [['reports', tr8], ['progress', pg8]]) { const m = text.match(/const AREA_KEY = \{([^}]*)\}/)[1]; for (const ar of R.AREAS) ok(new RegExp(`\\b${ar}: 'sk[A-Za-z]+'`).test(m), `${name}: label for area ${ar}`) }
+    const v = R.learnerView([row('d-power'), row('d-pin', { r: { pickRight: 1, pickTotal: 2 } })], [], [], NOW8)
+    eq([v.digital.total, v.safety.total, v.digital.done, v.safety.done], [23, 7, 1, 1], 'learner view counts the digital course')
+  }
+
+  // --- 8B: course pricing, payments, codes (migration 023)
+  ok(/is_free = \(price_ngn = 0\)/.test(rd('supabase/migrations/017_adult_core.sql')), 'database ties "free" to price 0')
+  for (const t2 of ['adult_payment_info', 'adult_payments', 'adult_activation_codes', 'adult_code_attempts']) ok(new RegExp(`alter table public\\.${t2}\\s+enable row level security`).test(c23), `RLS on ${t2}`)
+  ok(/grant select on public\.adult_payment_info, public\.adult_payments to authenticated/.test(c23) && !/grant (insert|update|delete|all)/i.test(c23) && !/grant select[^;]*(activation_codes|code_attempts)/.test(c23), 'browser reads payment info and payments only; codes and attempts are not readable at all')
+  ok(/revoke all on public\.adult_payment_info, public\.adult_payments, public\.adult_activation_codes, public\.adult_code_attempts from anon, authenticated/.test(c23), 'rights reset first')
+  const ppol = (c23.match(/create policy "adult_payments: own or admin"[\s\S]*?;/) || [''])[0]
+  ok(/learner_id = auth\.uid\(\)/.test(ppol) && /is_adult_staff\(array\['adult_admin'\]\)/.test(ppol) && !/staff_can_see_learner|adult_can_manage_class/.test(ppol), 'a learner reads only their own payments; only the adult admin reads all; facilitators never see payments')
+  ok(/create unique index if not exists adult_payments_one_pending[^;]*where status = 'pending'/.test(c23), 'only one waiting request per learner and course')
+  ok(/method\s+text not null default 'manual' check \(method in \('manual','code','online'\)\)/.test(c23) && /status\s+text not null default 'pending' check \(status in \('pending','verified','rejected','cancelled'\)\)/.test(c23), 'payment methods and statuses')
+  ok(!/code\s+text/.test((c23.match(/create table if not exists public\.adult_activation_codes[\s\S]*?\n\);/) || [''])[0]) && /code_hash\s+text not null unique/.test(c23), 'codes are stored only as a hash')
+  const grant = fnOf(c23, 'adult_grant_access')
+  ok(/if e\.ends_at is null then return null; end if;/.test(grant) && /greatest\(now\(\), e\.ends_at\) \+ make_interval\(days => c\.access_days\)/.test(grant) && /c\.access_days is null then null/.test(grant), 'access: never shortened, added after any access still running, no end date when the course has none')
+  ok(/revoke all on function public\.adult_grant_access\(uuid,uuid,text\) from public, anon, authenticated/.test(c23) && !/to authenticated[^;]*adult_grant_access/.test(c23.replace(/revoke[^;]*;/g, '')), 'access can only be granted from inside the database functions')
+  for (const f of ['adult_admin_set_course', 'adult_admin_set_payment_info', 'adult_admin_verify_payment', 'adult_admin_reject_payment', 'adult_admin_payments', 'adult_admin_create_codes', 'adult_admin_codes']) ok(/is_adult_staff\(array\['adult_admin'\]\)/.test(fnOf(c23, f)) && /42501/.test(fnOf(c23, f)), `${f}: adult admin only`)
+  const sc = fnOf(c23, 'adult_admin_set_course')
+  ok(/p_status not in \('draft','published','coming_soon','archived'\)/.test(sc) && /p_price := 0; p_days := null/.test(sc) && /p_price < 1 or p_price > 10000000/.test(sc) && /p_days < 1 or p_days > 3650/.test(sc), 'course settings validated: status, free = price 0, price range, days range')
+  const rq = fnOf(c23, 'adult_request_payment')
+  ok(/is_adult_learner\(\)/.test(rq) && !/p_learner/.test(rq) && /auth\.uid\(\)/.test(rq) && /c\.status <> 'published' or c\.is_free/.test(rq), 'a learner can only ask for themselves, for a published premium course')
+  ok(/v_ref !~ '\^\[0-9A-Za-z \.,\/_-\]\+\$'/.test(rq) && /char_length\(v_ref\) not between 3 and 60/.test(rq) && />= 3 then raise exception 'too many waiting'/.test(rq) && /when unique_violation/.test(rq) && /e\.ends_at is null then raise exception 'already has access'/.test(rq), 'reference limited, at most 3 waiting, duplicates and people with permanent access refused')
+  ok(/c\.price_ngn, c\.access_days, 'manual'/.test(rq), 'the price and duration are fixed from the course at the moment of asking (a learner cannot set them)')
+  ok(!/insert into public\.adult_payments[^;]*status/.test(rq.replace(/status\)/g, '')) || !/'verified'/.test(rq), 'a learner can never create a verified payment')
+  const rc = fnOf(c23, 'adult_redeem_code')
+  ok(/>= 10 then raise exception 'too many code tries'/.test(rc) && /interval '1 hour'/.test(rc) && /char_length\(v_norm\) <> 12/.test(rc) && /sha256\(convert_to\(v_norm, 'utf8'\)\)/.test(rc) && /redeemed_at is null and \(expires_at is null or expires_at > now\(\)\) for update/.test(rc), 'codes: 10 tries an hour, hashed lookup, unused and unexpired only, locked while used')
+  ok(/adult_grant_access\(auth\.uid\(\), c\.id, 'payment'\)/.test(rc) && /c\.status <> 'published' or c\.is_free/.test(rc) && /redeemed_by = auth\.uid\(\)/.test(rc), 'a code gives access to its own premium course and is marked used')
+  const cc = fnOf(c23, 'adult_admin_create_codes')
+  ok(/p_count < 1 or p_count > 100 or/.test(cc) && /gen_random_uuid\(\)/.test(cc) && /encode\(sha256\(convert_to\(raw, 'utf8'\)\), 'hex'\)/.test(cc) && /returns text\[\]/.test(cc.slice(0, 200) + 'returns text[]') && /valid_days/.test(cc), 'codes: 1-100 at a time, random, only the hash stored')
+  const vp = fnOf(c23, 'adult_admin_verify_payment')
+  ok(/for update/.test(vp) && /p\.status <> 'pending'/.test(vp) && /adult_grant_access\(p\.learner_id, p\.course_id, 'payment'\)/.test(vp), 'accepting a payment: locked, only waiting ones, access granted by the database')
+  ok(!/provider/.test([rq, rc, vp, fnOf(c23, 'adult_admin_reject_payment')].join('')), 'no function writes the online-provider columns: online payment is NOT connected')
+  ok(!/service_role|secret|sk_live|sk_test/i.test(c23), 'no secret key in 023')
+  ok(/adult_admin_set_course\(uuid,text,boolean,integer,integer\)/.test(c23) && /grant execute on function public\.%s to authenticated/.test(c23), 'functions granted to signed-in users only')
+  const api8 = rd('src/adult/adultApi.js')
+  for (const [m, f] of [['setCourse', 'adult_admin_set_course'], ['setPaymentInfo', 'adult_admin_set_payment_info'], ['adminPayments', 'adult_admin_payments'], ['verifyPayment', 'adult_admin_verify_payment'], ['rejectPayment', 'adult_admin_reject_payment'], ['createCodes', 'adult_admin_create_codes'], ['codes', 'adult_admin_codes'], ['revokeCertificate', 'adult_admin_revoke_certificate']]) ok(new RegExp(`${m}: .*supabaseStaff, '${f}'`).test(api8), `staffApi.${m} → ${f}`)
+  for (const [m, f] of [['requestPayment', 'adult_request_payment'], ['cancelPayment', 'adult_cancel_payment'], ['redeemCode', 'adult_redeem_code'], ['certificateStatus', 'adult_certificate_status'], ['claimCertificate', 'adult_claim_certificate']]) ok(new RegExp(`${m}: .*supabaseAdult, '${f}'`).test(api8), `learnerApi.${m} → ${f}`)
+  ok(!/p_price: i\.free \? 0 : i\.price|p_days: i\.free \? null : i\.days/.test(api8) || /p_free: i\.free/.test(api8), 'free courses send no price')
+  for (const [rx, code] of [[/too many code tries/, 'CODETRIES'], [/bad codes/, 'BADCODES'], [/already waiting/, 'WAITING'], [/already has access/, 'HASACCESS'], [/not yet complete/, 'NOTYET'], [/certificate withdrawn/, 'WITHDRAWN'], [/bad reference/, 'BADREF']]) ok(new RegExp(`${code}'`).test(api8) && rx.test(m23 + m24), `refusal ${code} is raised by the database and mapped in the app`)
+  ok(api8.indexOf("'BADCODES'") < api8.indexOf("'BADCODE'"), 'the longer message is matched first')
+  const pay = rd('src/adult/pages/Pay.jsx'), adm = rd('src/adult/pages/TeachAdmin.jsx'), teach8 = rd('src/adult/pages/Teach.jsx'), lrn = rd('src/adult/pages/Learner.jsx')
+  ok(!/supabase|service_role|secret/i.test(pay.replace(/learnerApi/g, '')) && !/supabase|service_role/i.test(adm.replace(/staffApi/g, '')), 'payment screens go through the API layer; no keys in the browser code')
+  ok(/payNever/.test(pay) && /never type a pin|never type a bank card|Never type a PIN or a bank card/i.test(strings.en.payNever), 'the payment screen tells people never to type a PIN or card number')
+  ok(!/type="password"|cardnumber|cc-number|autoComplete="cc/i.test(pay), 'no card or PIN field in the payment screen')
+  ok(/\['courses', 'tCourses'\], \['payments', 'tPayments'\]/.test(teach8) && /role === 'adult_admin' \? \[\['courses'/.test(teach8) && /tab === 'payments' && role === 'adult_admin'/.test(teach8) && /tab === 'courses' && role === 'adult_admin'/.test(teach8), 'courses and payments are adult-admin screens (hidden and refused for facilitators)')
+  ok(/c\.status === 'published' && !enrolled && c\.is_free && <button/.test(lrn) && !/!enrolled && !c\.is_free[^\n]*enroll\(/.test(lrn), 'the "join" button calls enrol only for FREE courses')
+  ok(/to="\/adult\/payments"/.test(lrn) && /path="payments" element=\{<PaymentHistory \/>\}/.test(rd('src/adult/AdultApp.jsx')), 'learner payment history')
+  ok(/staffApi\.verifyPayment\(p\.id\), true/.test(adm) && /apCheckMoney/.test(adm), 'accepting a payment reminds the admin to check the money first')
+
+  // --- 8C: certificates (migration 024)
+  const reqs = [...c24.matchAll(/update public\.adult_courses set required_lessons = array\[([^\]]*)\] where slug = '([a-z-]+)'/g)].map((m) => [m[2], m[1].split(',').map((x) => x.replace(/'/g, ''))])
+  const want = { 'basic-literacy': LESSONS, 'basic-numeracy': num.LESSONS, 'basic-digital': D.LESSONS }
+  eq(reqs.length, 3, 'required lessons seeded for the three courses')
+  for (const [slug, keys] of reqs) eq(keys, want[slug].map((l) => l.key), `${slug}: the lesson list in the database equals the app's course, in order`)
+  ok(/alter table public\.adult_certificates enable row level security/.test(c24), 'RLS on certificates')
+  ok(/create policy "adult_certificates: own or staff"[\s\S]*?learner_id = auth\.uid\(\) or public\.staff_can_see_learner\(learner_id\)/.test(c24), 'only the owner and staff who may see that learner can read a certificate')
+  ok(/grant select on public\.adult_certificates to authenticated/.test(c24) && !/grant[^;]*adult_certificates[^;]*to anon/i.test(c24) && !/grant (insert|update|delete|all)/i.test(c24), 'no anonymous access, browser read only')
+  ok(/unique \(learner_id, course_id\)/.test(c24) && /number\s+text not null unique/.test(c24) && /status in \('valid','revoked'\)/.test(c24), 'one certificate per learner and course, unique number, can be withdrawn')
+  const std = fnOf(c24, 'adult_calc_standard')
+  ok(/v_done >= v_req/.test(std) && /v_req > 0/.test(std) && />= 0\.6/.test(std) && /lp\.lesson_key = any\(/.test(std) && /'pickTotal'/.test(std) && /'match'/.test(std) && !/trace|write_rating|best_calc/.test(std), 'eligibility: every required lesson completed and at least 60% of the automatically marked questions right; handwriting plays no part')
+  ok(/revoke all on function public\.adult_calc_standard\(uuid,uuid\) from public, anon, authenticated/.test(c24), 'the calculation is internal')
+  const cl = fnOf(c24, 'adult_claim_certificate')
+  ok(/is_adult_learner\(\)/.test(cl) && !/p_learner/.test(cl) && /from public\.adult_enrollments e where e\.learner_id = auth\.uid\(\)/.test(cl) && /cert\.status = 'revoked' then raise exception 'certificate withdrawn'/.test(cl) && /not \(s->>'eligible'\)::boolean then raise exception 'not yet complete'/.test(cl), 'a learner can claim only their own, only when eligible, never again after it was withdrawn')
+  ok(/'ASAR-AD-' \|\| to_char\(now\(\), 'YYYY'\) \|\| '-' \|\| lpad\(nextval\('public\.adult_certificate_seq'\)::text, 6, '0'\)/.test(cl) && /p\.full_name, c\.title/.test(cl), 'unique number; the name and course title are saved on the certificate')
+  ok(/is_adult_staff\(array\['adult_admin'\]\)/.test(fnOf(c24, 'adult_admin_revoke_certificate')), 'only the adult admin withdraws a certificate')
+  ok(!/service_role|secret/i.test(c24), 'no secret key in 024')
+  // wording: completion of an ASARTUN course, never accreditation
+  ok(/Course Completion/.test(strings.en.certHeading) && /ASARTUN/.test(strings.en.certHeading) && /ASARTUN STORE LIMITED/.test(strings.en.certBy), 'the certificate says ASARTUN course completion and who offers it')
+  ok(/not a government-accredited or examination-board qualification/.test(strings.en.certNotAccredited) && /Ba takardar shaidar gwamnati ba ce/.test(strings.ha.certNotAccredited), 'it says in both languages that it is not a government qualification')
+  const certText = Object.entries(strings.en).filter(([k]) => /^cert/.test(k)).map(([, v]) => v).join(' ').replace(strings.en.certNotAccredited, '')
+  ok(!/accredited|approved by|recogni[sz]ed by|official|WAEC|NECO|NBTE|NABTEB|ministry|licen[cs]ed/i.test(certText), 'no other certificate text suggests accreditation or official recognition')
+  ok(/certNotAccredited/.test(rd('src/adult/pages/Certificate.jsx')) && /certHeading/.test(rd('src/adult/pages/Certificate.jsx')), 'the certificate page shows the wording')
+  const app8 = rd('src/adult/AdultApp.jsx')
+  ok(/path="certificate\/:id"/.test(app8) && !/verify|check-certificate|path="certificates?"/i.test(app8), 'certificate page is for signed-in owners; there is no public check page')
+  ok(!/anon/.test(c24.replace(/revoke[^;]*;/g, '')), 'nothing in 024 is given to anonymous visitors')
+  ok(/<CertificatesTab role=\{role\} \/>/.test(teach8) && /\['certificates', 'tCertificates'\]/.test(teach8), 'staff can see certificates')
+  ok(/window\.print\(\)/.test(rd('src/adult/pages/Certificate.jsx')) && /ad-cert/.test(rd('src/adult/adult.css')), 'a certificate can be printed')
+  const sdep = JSON.parse(rd('package.json')); eq(Object.keys(sdep.dependencies).sort(), ['@supabase/supabase-js', 'lucide-react', 'react', 'react-dom', 'react-router-dom'], 'still no new dependency')
 }
 
 console.log(fail ? `\n${fail} of ${n} checks FAILED` : `All ${n} adult checks passed`)

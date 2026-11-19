@@ -5,6 +5,8 @@ import { AssessmentPage, Courses, Help, Home, Practice, Shell } from './pages/Le
 import { LessonList, LessonPlayer } from './pages/Lessons.jsx'
 import { WorkDetail, WorkList } from './pages/Work.jsx'
 import Progress from './pages/Progress.jsx'
+import { CertificatePage } from './pages/Certificate.jsx'
+import { PaymentHistory } from './pages/Pay.jsx'
 import { lazy, Suspense } from 'react'
 import './adult.css'
 
@@ -25,6 +27,9 @@ export default function AdultApp() {
             <Route path="courses" element={<Courses />} />
             <Route path="learn" element={<LessonList slug="basic-literacy" />} />
             <Route path="numeracy" element={<LessonList slug="basic-numeracy" />} />
+            <Route path="digital" element={<LessonList slug="basic-digital" />} />
+            <Route path="payments" element={<PaymentHistory />} />
+            <Route path="certificate/:id" element={<CertificatePage />} />
             <Route path="learn/:key" element={<LessonPlayer />} />
             <Route path="write" element={<WorkList />} />
             <Route path="work/:id" element={<WorkDetail />} />

@@ -11,6 +11,7 @@
 import { needsPractice, TRACE_OK } from './progress.js'
 import { LESSONS as LIT } from './curriculum.js'
 import { LESSONS as NUM } from './numeracy.js'
+import { LESSONS as DIG, SAFETY_UNIT } from './digital.js'
 
 // ---------------------------------------------------------------------------------------------- thresholds
 // One place to change a rule. Each support flag below quotes the numbers it used.
@@ -25,17 +26,20 @@ export const T = {
   MC_MIN_ITEMS: 4,
   WORK_MIN_MARKED: 2, WORK_LOW: 0.5,       // average mark of reviewed assignments, as a share of full marks
   WORK_OVERDUE: 2,            // assignments past their due date with nothing sent
+  SAFETY_MIN_ITEMS: 4, SAFETY_LOW: 0.6, SAFETY_VERY_LOW: 0.4,   // online-safety / scam questions (multiple choice, marked automatically)
   WEEKS: 8,                   // length of the "over time" view
 }
 
-export const AREAS = ['read', 'write', 'count', 'apply']
+export const AREAS = ['read', 'write', 'count', 'apply', 'digital', 'safety']
 const APPLIED_NUM_UNITS = ['money', 'measure', 'finance']
 const lit = Object.fromEntries(LIT.map((l) => [l.key, l.unit]))
 const num = Object.fromEntries(NUM.map((l) => [l.key, l.unit]))
+const dig = Object.fromEntries(DIG.map((l) => [l.key, l.unit]))
 // Which course and unit a lesson key belongs to; null for a key the app does not know (never counted).
 export function lessonInfo(key) {
   if (key in lit) return { course: 'literacy', unit: lit[key], applied: lit[key] === 'messages' }
   if (key in num) return { course: 'numeracy', unit: num[key], applied: APPLIED_NUM_UNITS.includes(num[key]) }
+  if (key in dig) return { course: 'digital', unit: dig[key], applied: false }
   return null
 }
 export const APPLIED_KEYS = [...NUM.filter((l) => APPLIED_NUM_UNITS.includes(l.unit)).map((l) => l.key), ...LIT.filter((l) => l.unit === 'messages').map((l) => l.key)]
@@ -59,6 +63,10 @@ export function skillAreas(progress) {
     if ((info.course === 'literacy' && !info.applied) || info.course === 'numeracy') {
       if (row.best_trace != null) add('write', 1, Number(row.best_trace) >= TRACE_OK ? 1 : 0)
       if (row.write_rating in RATE) add('write', 1, RATE[row.write_rating])
+    }
+    if (info.course === 'digital') {   // phone and internet skills; scam / safety questions are pooled separately. All multiple choice or tap-the-place, marked automatically.
+      if ((r.pickTotal || 0) > 0) add(info.unit === SAFETY_UNIT ? 'safety' : 'digital', r.pickTotal, Math.min(r.pickRight || 0, r.pickTotal))
+      continue
     }
     if (info.course === 'literacy') {   // reading: matching and finding the right letter/word (multiple choice, marked automatically)
       const area = info.applied ? 'apply' : 'read'
@@ -157,6 +165,8 @@ export function supportFlags(l, ctx) {
   if (maths.pickItems >= T.MC_MIN_ITEMS && maths.pickPct < T.MATHS_LOW) flags.push({ code: 'choiceLow', level: maths.pickPct < T.MATHS_VERY_LOW ? 'high' : 'watch', vars: { pct: Math.round(maths.pickPct * 100), n: maths.pickItems } })
   if (work.marked >= T.WORK_MIN_MARKED && work.avgShare < T.WORK_LOW) flags.push({ code: 'workLow', level: 'watch', vars: { pct: Math.round(work.avgShare * 100), n: work.marked } })
   if (work.overdueUnsent >= T.WORK_OVERDUE) flags.push({ code: 'workOverdue', level: 'watch', vars: { n: work.overdueUnsent } })
+  const safety = skillAreas(l.prog).safety
+  if (safety.items >= T.SAFETY_MIN_ITEMS && safety.pct < T.SAFETY_LOW) flags.push({ code: 'safetyLow', level: safety.pct < T.SAFETY_VERY_LOW ? 'high' : 'watch', vars: { pct: Math.round(safety.pct * 100), n: safety.items } })
   const evidence = lessons.attempted + att.marked + work.marked
   const status = evidence === 0 && flags.length === 0 ? 'nodata' : flags.some((f) => f.level === 'high') || flags.length >= 2 ? 'support' : flags.length === 1 ? 'watch' : 'ok'
   return { status, flags }
@@ -229,13 +239,14 @@ export function learnerView(prog, att, subs, now = new Date()) {
     letters: unit(LIT, ['letters']), words: unit(LIT, ['words', 'name']), sentences: unit(LIT, ['sentences', 'messages']),
     digits: unit(NUM, ['numbers', 'compare']),
     calc: unit(NUM, ['add_sub', 'mult_div']), applied: unit(NUM, ['money', 'measure', 'finance']),
+    digital: unit(DIG, ['phone', 'calls', 'texts', 'chat', 'web', 'search']), safety: unit(DIG, [SAFETY_UNIT]),
     writtenRight: maths.writtenItems ? Math.round(maths.writtenPct * maths.writtenItems) : 0, writtenTotal: maths.writtenItems,
     areas, practise, attendance: a, markedWork: marked.length, anyProgress: rows.length > 0,
     next: nextLessonKey(byKey),
   }
 }
 function nextLessonKey(byKey) {
-  const all = [...LIT, ...NUM]
+  const all = [...LIT, ...NUM, ...DIG]
   const started = all.filter((l) => byKey[l.key] && byKey[l.key].status !== 'completed')[0]
   return started ? started.key : null
 }

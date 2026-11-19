@@ -8,8 +8,8 @@ import { AREAS, T, learnerView, weeklySeries } from '../reports.js'
 // The learner's own progress: what they can do, said plainly. No points, no ranks, no comparison with anyone, no "support" flags
 // (those are for teachers). Everything here comes from the learner's own records.
 const SELF_KEY = { none: 'mlvNone', early: 'mlvEarly', building: 'mlvBuilding', developing: 'mlvDeveloping', secure: 'mlvSecure' }
-const AREA_KEY = { read: 'skRead', write: 'skWrite', count: 'skCount', apply: 'skApply' }
-const UNITS = [['letters', 'mpLetters'], ['words', 'mpWords'], ['sentences', 'mpSentences'], ['digits', 'mpDigits'], ['calc', 'mpCalc'], ['applied', 'mpApplied']]
+const AREA_KEY = { read: 'skRead', write: 'skWrite', count: 'skCount', apply: 'skApply', digital: 'skDigital', safety: 'skSafety' }
+const UNITS = [['letters', 'mpLetters'], ['words', 'mpWords'], ['sentences', 'mpSentences'], ['digits', 'mpDigits'], ['calc', 'mpCalc'], ['applied', 'mpApplied'], ['digital', 'mpDigital'], ['safety', 'mpSafety']]
 
 export default function Progress() {
   const { t } = useAdult()

@@ -70,3 +70,15 @@
   .ad-card { break-inside:avoid; border:1px solid #999; } .ad-progress { border:1px solid #999; } .ad-progress i { background:#000 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .ad-tag { border:1px solid #000 !important; background:#fff !important; color:#000 !important; }
 }
+/* phase 8: drawn phone screens, message cards, payment, certificate */
+.ad-phone { width:100%; max-width:300px; align-self:center; height:auto; touch-action:manipulation; }
+.ad-phone-frame { fill:var(--card); stroke:var(--ink); stroke-width:3; }
+.ad-el { fill:var(--card); stroke:var(--line); stroke-width:2; } .ad-el.decor { stroke-dasharray:4 3; fill:transparent; }
+.ad-el-label { fill:var(--ink); font-family:inherit; font-weight:600; } .ad-phone text { fill:var(--ink); font-family:inherit; }
+.ad-hot { cursor:pointer; } .ad-hot:focus-visible .ad-el, .ad-hot:hover .ad-el { stroke:var(--brand); stroke-width:3; } .ad-hot:focus { outline:none; }
+.ad-el.right { stroke:var(--good); stroke-width:5; } .ad-el.wrong { stroke:var(--bad); stroke-width:5; }
+.ad-msgcard { background:var(--card); border:2px solid var(--line); border-radius:16px; padding:14px 16px; } .ad-msgcard p { margin:.2em 0 0; }
+.ad-pay-price { font-size:1.5rem; font-weight:700; }
+.ad-cert { background:#fff; color:#000; border:6px double #0d5c63; border-radius:6px; padding:28px 22px; text-align:center; display:flex; flex-direction:column; gap:12px; }
+.ad-cert h1 { font-size:1.5rem; letter-spacing:.03em; } .ad-cert .ad-cert-name { font-size:2rem; font-weight:700; border-bottom:2px solid #000; padding-bottom:6px; } .ad-cert .ad-cert-fine { font-size:.85rem; color:#333; }
+@media print { .ad-cert { border-color:#000; page-break-inside:avoid; } .ad-phone { display:none; } }

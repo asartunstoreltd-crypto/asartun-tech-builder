@@ -8,6 +8,7 @@ import Assessment, { AssessmentResult } from './Assessment.jsx'
 import { LangSwitch } from './Public.jsx'
 import WorkTab from './TeachWork.jsx'
 import { AttendanceTab, ReportsTab, ScheduleEditor, scheduleLine } from './TeachReports.jsx'
+import { CertificatesTab, CoursesTab, PaymentsTab } from './TeachAdmin.jsx'
 import { lessonByKey } from '../courses.js'
 import { needsPractice } from '../progress.js'
 
@@ -64,7 +65,7 @@ function StaffLogin() {
 function Dashboard({ role }) {
   const { t } = useAdult()
   const [tab, setTab] = useState('learners')
-  const tabs = [['learners', 'tLearners'], ['classes', 'tClasses'], ['attendance', 'tAttendance'], ['work', 'tWork'], ['reports', 'tReports'], ...(role === 'adult_admin' ? [['staff', 'tStaff']] : [])]
+  const tabs = [['learners', 'tLearners'], ['classes', 'tClasses'], ['attendance', 'tAttendance'], ['work', 'tWork'], ['reports', 'tReports'], ['certificates', 'tCertificates'], ...(role === 'adult_admin' ? [['courses', 'tCourses'], ['payments', 'tPayments'], ['staff', 'tStaff']] : [])]
   return (
     <div className="ad-page wide">
       <div className="ad-row"><h1>{t('forFacilitators')}</h1><button className="ad-link" onClick={() => supabaseStaff.auth.signOut()}>{t('signOut')}</button></div>
@@ -74,6 +75,9 @@ function Dashboard({ role }) {
       {tab === 'attendance' && <AttendanceTab />}
       {tab === 'work' && <WorkTab />}
       {tab === 'reports' && <ReportsTab role={role} />}
+      {tab === 'certificates' && <CertificatesTab role={role} />}
+      {tab === 'courses' && role === 'adult_admin' && <CoursesTab />}
+      {tab === 'payments' && role === 'adult_admin' && <PaymentsTab />}
       {tab === 'staff' && <StaffTab />}
     </div>
   )

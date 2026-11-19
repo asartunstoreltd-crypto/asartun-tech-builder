@@ -10,9 +10,9 @@ import { AREAS, DAYS, T, attendanceStats, bySupport, classSummary, scheduleParts
 
 export const E = (t, code) => t({ network: 'errNetwork', denied: 'errDenied', CLASS_CLOSED: 'errClassClosed', BADDATE: 'errBadDate', BADSCHEDULE: 'errBadSchedule', BADMARKS: 'errBadMarks', TOOMANY: 'errTooMany', config: 'errConfig' }[code] || 'errGeneric')
 const LEVEL_KEY = { none: 'lvNone', early: 'lvEarly', building: 'lvBuilding', developing: 'lvDeveloping', secure: 'lvSecure' }
-const AREA_KEY = { read: 'skRead', write: 'skWrite', count: 'skCount', apply: 'skApply' }
+const AREA_KEY = { read: 'skRead', write: 'skWrite', count: 'skCount', apply: 'skApply', digital: 'skDigital', safety: 'skSafety' }
 export const STATUS_KEY = { support: 'statusSupport', watch: 'statusWatch', ok: 'statusOk', nodata: 'statusNodata' }
-export const FLAG_KEY = { attLow: 'fAttLow', absentStreak: 'fAbsentStreak', inactive: 'fInactive', neverStarted: 'fNeverStarted', practice: 'fPractice', mathsLow: 'fMathsLow', choiceLow: 'fChoiceLow', workLow: 'fWorkLow', workOverdue: 'fWorkOverdue' }
+export const FLAG_KEY = { attLow: 'fAttLow', absentStreak: 'fAbsentStreak', inactive: 'fInactive', neverStarted: 'fNeverStarted', practice: 'fPractice', mathsLow: 'fMathsLow', choiceLow: 'fChoiceLow', workLow: 'fWorkLow', workOverdue: 'fWorkOverdue', safetyLow: 'fSafetyLow' }
 const DAY_KEY = { 1: 'day1', 2: 'day2', 3: 'day3', 4: 'day4', 5: 'day5', 6: 'day6', 7: 'day7' }
 const ATT_KEY = { present: 'attPresent', late: 'attLate', absent: 'attAbsent' }
 const SCHED_ERR = { schedDays: 'schErrDays', schedTime: 'schErrTime', schedOrder: 'schErrOrder', sched: 'schErr' }
@@ -211,6 +211,7 @@ function Rules() {
         <li>{t('ruleChoice', { pct: r(T.MATHS_LOW), n: T.MC_MIN_ITEMS })}</li>
         <li>{t('ruleWork', { pct: r(T.WORK_LOW), n: T.WORK_MIN_MARKED })}</li>
         <li>{t('ruleOverdue', { n: T.WORK_OVERDUE })}</li>
+        <li>{t('ruleSafety', { pct: r(T.SAFETY_LOW), n: T.SAFETY_MIN_ITEMS, high: r(T.SAFETY_VERY_LOW) })}</li>
       </ul>
       <p className="ad-note">{t('ruleLevel')}</p>
     </details>

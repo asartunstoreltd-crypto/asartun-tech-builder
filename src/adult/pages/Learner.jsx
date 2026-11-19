@@ -29,10 +29,10 @@ export function Shell() {
 }
 
 function useLearnerData() {
-  const [d, setD] = useState({ loading: true, error: false, courses: [], enrolled: [], assessment: null })
+  const [d, setD] = useState({ loading: true, error: false, courses: [], enrolled: [], expired: [], ends: {}, assessment: null })
   const load = useCallback(async () => {
     const [c, e, a] = await Promise.all([learnerApi.courses(), learnerApi.enrollments(), learnerApi.latestAssessment()])
-    setD({ loading: false, error: Boolean(c.error || e.error || a.error), courses: c.data || [], enrolled: (e.data || []).map((x) => x.course_id), assessment: (a.data || [])[0] || null })
+    setD({ loading: false, error: Boolean(c.error || e.error || a.error), courses: c.data || [], enrolled: (e.data || []).filter((x) => !x.ends_at || Date.parse(x.ends_at) > Date.now()).map((x) => x.course_id), expired: (e.data || []).filter((x) => x.ends_at && Date.parse(x.ends_at) <= Date.now()).map((x) => x.course_id), ends: Object.fromEntries((e.data || []).filter((x) => x.ends_at).map((x) => [x.course_id, x.ends_at])), assessment: (a.data || [])[0] || null })
   }, [])
   useEffect(() => { load() }, [load])
   return { ...d, reload: load }
@@ -107,11 +107,15 @@ export function Courses() {
             <h2>{c.title[lang] || c.title.en}</h2>
             <p>{c.description[lang] || c.description.en}</p>
             {c.status === 'coming_soon' && <p className="ad-note">{t('comingSoon')}</p>}
-            {c.status === 'published' && !enrolled && <button className="ad-btn primary" disabled={busy === c.id} onClick={() => enroll(c.id)}>{c.is_free ? t('joinFree') : t('join')}</button>}
+            <p className="ad-note">{c.is_free ? t('payFree') : t('payPremium') + ' · ₦' + c.price_ngn.toLocaleString()}</p>
+            {c.status === 'published' && !enrolled && c.is_free && <button className="ad-btn primary" disabled={busy === c.id} onClick={() => enroll(c.id)}>{t('joinFree')}</button>}
+            {c.status === 'published' && !enrolled && !c.is_free && (<>{d.expired.includes(c.id) && <p className="ad-error">{t('courseExpired')}</p>}{COURSES[c.slug] ? <Link className="ad-btn primary" to={COURSES[c.slug].route}>{t('payJoinHow')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>)}
+            {enrolled && d.ends[c.id] && <p className="ad-note">{t('courseUntil', { date: new Date(d.ends[c.id]).toLocaleDateString() })}</p>}
             {c.status === 'published' && enrolled && <><p className="ad-ok">{t('joined')}</p>{COURSES[c.slug] ? <Link className="ad-btn primary" to={COURSES[c.slug].route}>{t('openLessons')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>}
           </section>
         )
       })}
+      <Link className="ad-link" to="/adult/payments">{t('payHistory')}</Link>
     </main>
   )
 }

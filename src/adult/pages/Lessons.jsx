@@ -11,21 +11,26 @@ import { enqueue, flush } from '../progressQueue.js'
 import { hasVoice, useVoices } from '../speech.js'
 import HandwritingCanvas from '../components/HandwritingCanvas.jsx'
 import AdultAudio, { VoiceHint } from '../components/AdultAudio.jsx'
+import { TapStep } from '../components/DigitalSteps.jsx'
+import PayPanel from './Pay.jsx'
+import { CertificateBox } from './Certificate.jsx'
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : 'a' + Date.now() + Math.random().toString(16).slice(2))
 const LITERACY = 'basic-literacy'
 
 // Loads one course, whether the learner joined it, their progress, and the starting point advised by the assessment.
 export function useCourse(slug) {
-  const [d, setD] = useState({ loading: true, error: false, course: null, enrolled: false, rows: [], start: null })
+  const [d, setD] = useState({ loading: true, error: false, course: null, enrolled: false, expired: false, endsAt: null, rows: [], start: null })
   const kind = COURSES[slug]?.kind
   const load = useCallback(async () => {
     await flush((i) => learnerApi.recordLesson(i))                     // send anything that could not be saved earlier
     const [c, e, p, a] = await Promise.all([learnerApi.courses(), learnerApi.enrollments(), learnerApi.progress(), learnerApi.latestAssessment()])
     const course = (c.data || []).find((x) => x.slug === slug) || null
     const keys = new Set(COURSES[slug].lessons.map((l) => l.key))
+    const mine = course ? (e.data || []).find((x) => x.course_id === course.id) : null
+    const active = Boolean(mine && (!mine.ends_at || Date.parse(mine.ends_at) > Date.now()))     // the database enforces the same rule
     setD({
-      loading: false, error: Boolean(c.error || e.error || p.error), course, enrolled: Boolean(course && (e.data || []).some((x) => x.course_id === course.id)),
+      loading: false, error: Boolean(c.error || e.error || p.error), course, enrolled: active, expired: Boolean(mine && !active), endsAt: mine ? mine.ends_at : null,
       rows: (p.data || []).filter((r) => keys.has(r.lesson_key)), start: ((a.data || [])[0]?.recommended?.[kind]?.start) || null,
     })
   }, [slug, kind])
@@ -45,6 +50,7 @@ export function LessonList({ slug = LITERACY }) {
   if (d.loading) return <div className="ad-page ad-center"><p className="ad-big">{t('wait')}</p></div>
   const join = async () => { setErr(''); const { error } = await learnerApi.enroll(d.course.id); if (error) setErr(t(error === 'network' ? 'errNetwork' : 'errGeneric')); else d.reload() }
   if (!d.course) return <main className="ad-page"><p className="ad-big">{t('errGeneric')}</p></main>
+  if (!d.enrolled && !d.course.is_free) return <main className="ad-page"><h1>{t(def.titleKey)}</h1><PayPanel course={d.course} expired={d.expired} endsAt={d.endsAt} onDone={d.reload} /></main>
   if (!d.enrolled) return (
     <main className="ad-page"><h1>{t(def.titleKey)}</h1><p className="ad-big">{t('notEnrolled')}</p>
       {err && <p className="ad-error">{err}</p>}<button className="ad-btn primary" onClick={join}>{t('joinFree')}</button></main>)
@@ -77,6 +83,7 @@ export function LessonList({ slug = LITERACY }) {
             })}
           </ul>
         </section>))}
+      <CertificateBox course={d.course} />
     </main>
   )
 }
@@ -202,7 +209,7 @@ function CalcStep({ item, onAnswer, onNext }) {
 }
 
 // Multiple choice, marked automatically. The first tap is the answer; it is shown, then the learner moves on.
-function ChoiceStep({ kind, prompt, big, options, target, answerLabel, extra, onAnswer, onNext }) {
+function ChoiceStep({ kind, prompt, big, options, target, answerLabel, extra, why, onAnswer, onNext }) {
   const { t } = useAdult()
   const [picked, setPicked] = useState(null)
   const pick = (o) => { if (picked !== null) return; setPicked(o); onAnswer({ type: kind, ok: o === target }) }
@@ -214,6 +221,7 @@ function ChoiceStep({ kind, prompt, big, options, target, answerLabel, extra, on
       {options.map((o) => <button key={o} className={'ad-btn ad-opt' + (picked !== null && o === target ? ' right' : picked === o ? ' wrong' : '')} disabled={picked !== null && picked !== o && o !== target} onClick={() => pick(o)}>{o}</button>)}
     </div>
     {picked !== null && (picked === target ? <Feedback ok>{t('rightAnswer')}</Feedback> : <Feedback>{t('wrongAnswer', { answer: answerLabel || target })}</Feedback>)}
+    {picked !== null && why && <p className="ad-note"><strong>{t('dlWhy')}</strong> {why}</p>}
     {picked !== null && <button className="ad-btn primary" onClick={onNext}>{t('next')}</button>}
   </>)
 }
@@ -295,6 +303,9 @@ export function LessonPlayer() {
         return <ChoiceStep kind="pick" prompt={t(step.promptKey, step.vars)} onAnswer={answer} onNext={go} options={step.options} target={step.target}
           big={f ? <Pre className="ad-huge">{f.textKey ? t(f.textKey, f.vars) : f.expr}</Pre> : step.dots ? <Dots n={step.dots} /> : null} />
       }
+      case 'tap': return <TapStep step={step} onAnswer={answer} onNext={go} />
+      case 'dchoice': return <ChoiceStep kind="pick" prompt={t(step.promptKey)} options={step.optionKeys.map((x) => t(x))} target={t(step.targetKey)} why={step.whyKey ? t(step.whyKey) : null} onAnswer={answer} onNext={go}
+        big={step.cardKey ? <div className="ad-msgcard" role="note"><span className="ad-note">{t('dlFrom')}</span><p className="ad-big">{t(step.cardKey)}</p></div> : null} extra={step.cardKey ? <AdultAudio text={t(step.cardKey)} big /> : null} />
       case 'match': return <ChoiceStep kind="match" prompt={t('matchPrompt')} big={<p className="ad-giant">{step.prompt}</p>} options={step.options} target={step.target} onAnswer={answer} onNext={go} />
       case 'find': {
         const hear = voice && (step.kind === 'sameWord' || step.kind === 'sameSentence')   // with a Hausa voice this becomes a real reading task

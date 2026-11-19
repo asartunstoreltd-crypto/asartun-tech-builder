@@ -1,10 +1,12 @@
 // The adult courses in one place, so the lesson list, lesson player and facilitator screens treat them alike.
 import * as lit from './curriculum.js'
 import * as num from './numeracy.js'
+import * as dig from './digital.js'
 
 export const COURSES = {
   [lit.COURSE_SLUG]: { slug: lit.COURSE_SLUG, kind: 'literacy', units: lit.UNITS, lessons: lit.LESSONS, route: '/adult/learn', titleKey: 'lessonsTitle' },
   [num.COURSE_SLUG]: { slug: num.COURSE_SLUG, kind: 'numeracy', units: num.UNITS, lessons: num.LESSONS, route: '/adult/numeracy', titleKey: 'numeracyTitle' },
+  [dig.COURSE_SLUG]: { slug: dig.COURSE_SLUG, kind: 'digital', units: dig.UNITS, lessons: dig.LESSONS, route: '/adult/digital', titleKey: 'digitalTitle' },
 }
 export const ALL_LESSONS = Object.values(COURSES).flatMap((c) => c.lessons)
 export const lessonByKey = (k) => ALL_LESSONS.find((l) => l.key === k) || null

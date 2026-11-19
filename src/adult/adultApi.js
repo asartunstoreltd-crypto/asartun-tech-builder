@@ -24,7 +24,9 @@ async function rpc(client, fn, args) {
   try {
     const { data, error } = await client.rpc(fn, args)
     if (!error) return { data, error: null }
-    const known = [[/already marked/i, 'MARKED'], [/assignment closed/i, 'CLOSED_WORK'], [/too many attempts/i, 'ATTEMPTS'], [/photo not uploaded/i, 'NOUPLOAD'], [/class is closed/i, 'CLASS_CLOSED'], [/bad score/i, 'BADSCORE'], [/too many learners/i, 'TOOMANY'], [/bad date/i, 'BADDATE'], [/bad schedule/i, 'BADSCHEDULE'], [/bad marks|bad note/i, 'BADMARKS']]
+    const known = [[/already marked/i, 'MARKED'], [/assignment closed/i, 'CLOSED_WORK'], [/too many attempts/i, 'ATTEMPTS'], [/photo not uploaded/i, 'NOUPLOAD'], [/class is closed/i, 'CLASS_CLOSED'], [/bad score/i, 'BADSCORE'], [/too many learners/i, 'TOOMANY'], [/bad date/i, 'BADDATE'], [/bad schedule/i, 'BADSCHEDULE'], [/bad marks|bad note/i, 'BADMARKS'],
+      [/bad reference/i, 'BADREF'], [/already waiting/i, 'WAITING'], [/too many waiting/i, 'TOOMANYWAIT'], [/already has access/i, 'HASACCESS'], [/too many code tries/i, 'CODETRIES'], [/bad codes/i, 'BADCODES'], [/bad code/i, 'BADCODE'],
+      [/course not available/i, 'NOCOURSE'], [/not yet complete/i, 'NOTYET'], [/certificate withdrawn/i, 'WITHDRAWN'], [/payment already decided/i, 'DECIDED'], [/bad price/i, 'BADPRICE'], [/bad course/i, 'BADCOURSE'], [/bad payment info/i, 'BADINFO'], [/not enrolled/i, 'denied']]
     const hit = known.find(([re]) => re.test(error.message || ''))
     return fail(hit ? hit[1] : /denied|authorized|42501/i.test(error.message) ? 'denied' : 'generic')
   } catch (e) { return fail(net(e)) }
@@ -47,8 +49,8 @@ export const learnerApi = {
   register: (full_name, phone, pin) => call(supabaseAdult, 'self_register', { full_name, phone, pin }),
   profile: (uid) => select(supabaseAdult.from('adult_profiles').select('*').eq('id', uid).maybeSingle()),
   updateSettings: (uid, patch) => select(supabaseAdult.from('adult_profiles').update(patch).eq('id', uid)),
-  courses: () => select(supabaseAdult.from('adult_courses').select('id,slug,kind,title,description,status,is_free').order('position')),
-  enrollments: () => select(supabaseAdult.from('adult_enrollments').select('course_id,created_at')),
+  courses: () => select(supabaseAdult.from('adult_courses').select('id,slug,kind,title,description,status,is_free,price_ngn,access_days').order('position')),
+  enrollments: () => select(supabaseAdult.from('adult_enrollments').select('course_id,created_at,ends_at,source')),
   latestAssessment: () => select(supabaseAdult.from('adult_assessments').select('id,mode,scores,recommended,needs_confirmation,created_at').order('created_at', { ascending: false }).limit(1)),
   progress: () => select(supabaseAdult.from('adult_lesson_progress').select('lesson_key,course_id,status,attempts,best_trace,last_trace,best_calc,write_rating,last_results,updated_at')),
   recordLesson: (i) => rpc(supabaseAdult, 'adult_record_lesson', { p_course: i.course, p_lesson: i.lesson, p_client: i.client, p_status: i.status, p_results: i.results }),
@@ -87,6 +89,15 @@ export const learnerApi = {
   },
   deleteAccount: () => rpc(supabaseAdult, 'adult_delete_my_account', {}),
   myReport: () => rpc(supabaseAdult, 'adult_my_report', {}),
+  // Phase 8: paying for a course, certificates
+  paymentInfo: () => select(supabaseAdult.from('adult_payment_info').select('instructions,account_details,whatsapp').maybeSingle()),
+  myPayments: () => select(supabaseAdult.from('adult_payments').select('id,course_id,status,method,reference,amount_ngn,reject_reason,created_at,decided_at').order('created_at', { ascending: false }).limit(50)),
+  requestPayment: (course, reference) => rpc(supabaseAdult, 'adult_request_payment', { p_course: course, p_reference: reference }),
+  cancelPayment: (id) => rpc(supabaseAdult, 'adult_cancel_payment', { p_payment: id }),
+  redeemCode: (code) => rpc(supabaseAdult, 'adult_redeem_code', { p_code: code }),
+  certificateStatus: (course) => rpc(supabaseAdult, 'adult_certificate_status', { p_course: course }),
+  claimCertificate: (course) => rpc(supabaseAdult, 'adult_claim_certificate', { p_course: course }),
+  myCertificates: () => select(supabaseAdult.from('adult_certificates').select('id,number,course_id,learner_name,course_title,issued_at,status').order('issued_at', { ascending: false })),
 }
 
 // ---- staff (facilitators and adult admin) ----
@@ -95,7 +106,7 @@ export const staffApi = {
   learners: (search) => rpc(supabaseStaff, 'adult_staff_learners', { p_search: search || null }),
   detail: (id) => rpc(supabaseStaff, 'adult_staff_learner_detail', { p_learner: id }),
   classes: () => select(supabaseStaff.from('adult_classes').select('id,name,mode,location,status,course_id,schedule').order('name')),
-  courses: () => select(supabaseStaff.from('adult_courses').select('id,slug,title,status').order('position')),
+  courses: () => select(supabaseStaff.from('adult_courses').select('id,slug,kind,title,status,is_free,price_ngn,access_days').order('position')),
   createClass: (name, course, mode, location) => rpc(supabaseStaff, 'adult_admin_create_class', { p_name: name, p_course: course || null, p_mode: mode, p_location: location || null }),
   assignFacilitator: (cls, email) => rpc(supabaseStaff, 'adult_admin_assign_facilitator', { p_class: cls, p_email: email }),
   addMember: (cls, phone) => rpc(supabaseStaff, 'adult_staff_add_member', { p_class: cls, p_phone: phone }),
@@ -111,6 +122,17 @@ export const staffApi = {
   submission: (id) => rpc(supabaseStaff, 'adult_staff_submission', { p_id: id }),
   review: (i) => rpc(supabaseStaff, 'adult_review_submission', { p_submission: i.id, p_score: i.score, p_comment: i.comment || null, p_corrections: i.corrections || [], p_redo: Boolean(i.redo) }),
   signedUrl: async (path) => { try { const { data, error } = await supabaseStaff.storage.from('adult-submissions').createSignedUrl(path, 300); return error ? fail('generic') : { data: data.signedUrl, error: null } } catch (e) { return fail(net(e)) } },
+  // Phase 8: course pricing, payments, codes, certificates (adult admin)
+  setCourse: (i) => rpc(supabaseStaff, 'adult_admin_set_course', { p_course: i.course, p_status: i.status, p_free: i.free, p_price: i.free ? 0 : i.price, p_days: i.free ? null : i.days }),
+  paymentInfo: () => select(supabaseStaff.from('adult_payment_info').select('instructions,account_details,whatsapp').maybeSingle()),
+  setPaymentInfo: (i) => rpc(supabaseStaff, 'adult_admin_set_payment_info', { p_instructions: i.instructions, p_account: i.account, p_whatsapp: i.whatsapp || null }),
+  adminPayments: (status) => rpc(supabaseStaff, 'adult_admin_payments', { p_status: status || null }),
+  verifyPayment: (id) => rpc(supabaseStaff, 'adult_admin_verify_payment', { p_payment: id }),
+  rejectPayment: (id, reason) => rpc(supabaseStaff, 'adult_admin_reject_payment', { p_payment: id, p_reason: reason || null }),
+  createCodes: (i) => rpc(supabaseStaff, 'adult_admin_create_codes', { p_course: i.course, p_count: i.count, p_note: i.note || null, p_valid_days: i.days }),
+  codes: () => rpc(supabaseStaff, 'adult_admin_codes', {}),
+  certificates: () => select(supabaseStaff.from('adult_certificates').select('id,number,learner_name,course_title,issued_at,status,revoked_reason').order('issued_at', { ascending: false }).limit(300)),
+  revokeCertificate: (id, reason) => rpc(supabaseStaff, 'adult_admin_revoke_certificate', { p_id: id, p_reason: reason || null }),
   // Phase 7: attendance, schedule, reports
   reportData: (cls) => rpc(supabaseStaff, 'adult_report_data', { p_class: cls }),
   openSession: (cls, date, note) => rpc(supabaseStaff, 'adult_open_session', { p_class: cls, p_date: date, p_note: note || null }),
