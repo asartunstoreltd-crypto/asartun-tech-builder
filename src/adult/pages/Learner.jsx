@@ -59,6 +59,9 @@ export function Home() {
   )
 }
 
+// where a course opens: built-in courses have their own page; a course written in the dashboard opens at /adult/c/<slug>
+const routeOf = (c) => (COURSES[c.slug] && COURSES[c.slug].route) || (c.origin === 'cms' ? '/adult/c/' + c.slug : null)
+
 function CourseCard({ slug }) {
   const { t } = useAdult()
   const def = COURSES[slug]
@@ -109,9 +112,9 @@ export function Courses() {
             {c.status === 'coming_soon' && <p className="ad-note">{t('comingSoon')}</p>}
             <p className="ad-note">{c.is_free ? t('payFree') : t('payPremium') + ' · ₦' + c.price_ngn.toLocaleString()}</p>
             {c.status === 'published' && !enrolled && c.is_free && <button className="ad-btn primary" disabled={busy === c.id} onClick={() => enroll(c.id)}>{t('joinFree')}</button>}
-            {c.status === 'published' && !enrolled && !c.is_free && (<>{d.expired.includes(c.id) && <p className="ad-error">{t('courseExpired')}</p>}{COURSES[c.slug] ? <Link className="ad-btn primary" to={COURSES[c.slug].route}>{t('payJoinHow')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>)}
+            {c.status === 'published' && !enrolled && !c.is_free && (<>{d.expired.includes(c.id) && <p className="ad-error">{t('courseExpired')}</p>}{routeOf(c) ? <Link className="ad-btn primary" to={routeOf(c)}>{t('payJoinHow')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>)}
             {enrolled && d.ends[c.id] && <p className="ad-note">{t('courseUntil', { date: new Date(d.ends[c.id]).toLocaleDateString() })}</p>}
-            {c.status === 'published' && enrolled && <><p className="ad-ok">{t('joined')}</p>{COURSES[c.slug] ? <Link className="ad-btn primary" to={COURSES[c.slug].route}>{t('openLessons')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>}
+            {c.status === 'published' && enrolled && <><p className="ad-ok">{t('joined')}</p>{routeOf(c) ? <Link className="ad-btn primary" to={routeOf(c)}>{t('openLessons')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>}
           </section>
         )
       })}

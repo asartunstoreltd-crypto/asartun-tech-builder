@@ -9,6 +9,8 @@ import { LangSwitch } from './Public.jsx'
 import WorkTab from './TeachWork.jsx'
 import { AttendanceTab, ReportsTab, ScheduleEditor, scheduleLine } from './TeachReports.jsx'
 import { CertificatesTab, CoursesTab, PaymentsTab } from './TeachAdmin.jsx'
+import ContentTab from './TeachContent.jsx'
+import { loadContent } from '../contentLoader.js'
 import { lessonByKey } from '../courses.js'
 import { needsPractice } from '../progress.js'
 
@@ -65,7 +67,8 @@ function StaffLogin() {
 function Dashboard({ role }) {
   const { t } = useAdult()
   const [tab, setTab] = useState('learners')
-  const tabs = [['learners', 'tLearners'], ['classes', 'tClasses'], ['attendance', 'tAttendance'], ['work', 'tWork'], ['reports', 'tReports'], ['certificates', 'tCertificates'], ...(role === 'adult_admin' ? [['courses', 'tCourses'], ['payments', 'tPayments'], ['staff', 'tStaff']] : [])]
+  useEffect(() => { loadContent('staff') }, [])                  // the admin's text corrections, recordings and dashboard courses (also needed for names in reports)
+  const tabs = [['learners', 'tLearners'], ['classes', 'tClasses'], ['attendance', 'tAttendance'], ['work', 'tWork'], ['reports', 'tReports'], ['certificates', 'tCertificates'], ...(role === 'adult_admin' ? [['courses', 'tCourses'], ['content', 'tContent'], ['payments', 'tPayments'], ['staff', 'tStaff']] : [])]
   return (
     <div className="ad-page wide">
       <div className="ad-row"><h1>{t('forFacilitators')}</h1><button className="ad-link" onClick={() => supabaseStaff.auth.signOut()}>{t('signOut')}</button></div>
@@ -77,6 +80,7 @@ function Dashboard({ role }) {
       {tab === 'reports' && <ReportsTab role={role} />}
       {tab === 'certificates' && <CertificatesTab role={role} />}
       {tab === 'courses' && role === 'adult_admin' && <CoursesTab />}
+      {tab === 'content' && role === 'adult_admin' && <ContentTab />}
       {tab === 'payments' && role === 'adult_admin' && <PaymentsTab />}
       {tab === 'staff' && <StaffTab />}
     </div>
@@ -102,7 +106,7 @@ function Learners({ role }) {
   if (adding) return <NewLearner role={role} onBack={() => { setAdding(false); load() }} />
   return (
     <section>
-      <div className="ad-row"><input className="ad-search" placeholder={t('search')} value={q} onChange={(e) => setQ(e.target.value)} /><button className="ad-btn primary" onClick={() => setAdding(true)}>{t('newLearner')}</button></div>
+      <div className="ad-row"><input className="ad-search" aria-label={t('search')} placeholder={t('search')} value={q} onChange={(e) => setQ(e.target.value)} /><button className="ad-btn primary" onClick={() => setAdding(true)}>{t('newLearner')}</button></div>
       {err && <p className="ad-error">{err}</p>}
       {loading ? <p className="ad-note">{t('wait')}</p> : rows.length === 0 ? <p className="ad-note">{t('noLearners')}</p> :
         <ul className="ad-list">{rows.map((r) => (
@@ -200,12 +204,12 @@ function Classes({ role }) {
           <h3>{c.name}</h3><p className="ad-note">{t('mode' + c.mode[0].toUpperCase() + c.mode.slice(1))}{c.location ? ' · ' + c.location : ''}</p>
           <p className="ad-note">{scheduleLine(t, c) || t('schNone')}</p>
           {c.status === 'active' && (sched === c.id ? <ScheduleEditor cls={c} onDone={(saved) => { setSched(''); if (saved) { setMsg(t('saved')); load() } }} /> : <button className="ad-link" onClick={() => setSched(c.id)}>{t('schEdit')}</button>)}
-          <div className="ad-row"><input inputMode="tel" placeholder={t('phone')} value={phone[c.id] || ''} onChange={(e) => setPhone({ ...phone, [c.id]: e.target.value })} />
+          <div className="ad-row"><input inputMode="tel" aria-label={t('phone')} placeholder={t('phone')} value={phone[c.id] || ''} onChange={(e) => setPhone({ ...phone, [c.id]: e.target.value })} />
             <button className="ad-btn" disabled={!normalizePhone(phone[c.id] || '')} onClick={() => run(staffApi.addMember(c.id, normalizePhone(phone[c.id])), t('saved'))}>{t('addLearner')}</button></div>
           {c.status === 'active' && (closing === c.id
             ? <div className="ad-card"><p className="ad-error">{t('closeClassSure')}</p><button className="ad-btn" onClick={() => { setClosing(''); run(staffApi.closeClass(c.id), t('saved')) }}>{t('closeClassYes')}</button><button className="ad-link" onClick={() => setClosing('')}>{t('cancel')}</button></div>
             : <button className="ad-link" onClick={() => setClosing(c.id)}>{t('closeClass')}</button>)}
-          {role === 'adult_admin' && <div className="ad-row"><input type="email" placeholder={t('facilitatorEmail')} value={email[c.id] || ''} onChange={(e) => setEmail({ ...email, [c.id]: e.target.value })} />
+          {role === 'adult_admin' && <div className="ad-row"><input type="email" aria-label={t('facilitatorEmail')} placeholder={t('facilitatorEmail')} value={email[c.id] || ''} onChange={(e) => setEmail({ ...email, [c.id]: e.target.value })} />
             <button className="ad-btn" disabled={!email[c.id]} onClick={() => run(staffApi.assignFacilitator(c.id, email[c.id]), t('saved'))}>{t('assign')}</button></div>}
         </div>))}
     </section>

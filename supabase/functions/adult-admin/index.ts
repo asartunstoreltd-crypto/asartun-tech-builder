@@ -111,6 +111,7 @@ Deno.serve(async (req: Request) => {
     if (action === 'create_learner') {
       const fullName = cleanName(body.full_name); const phone = normalizePhone(body.phone)
       const classId = body.class_id ? String(body.class_id) : null
+      if (classId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(classId)) return json({ error: 'Not allowed.' }, 403)
       const pin = body.pin ? String(body.pin) : randomPin()
       if (!fullName || fullName.length > 80) return json({ error: 'NAME' }, 400)
       if (!phone) return json({ error: 'PHONE' }, 400)
@@ -127,11 +128,17 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'reset_pin') {
       const learnerId = String(body.learner_id ?? '')
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(learnerId)) return json({ error: 'Not allowed.' }, 403)
+      // SECURITY: the login system is shared with the children's app and with staff. staff_can_see_learner() is true for the adult admin
+      // for ANY id, so the target must be checked to be an adult LEARNER here, or this could reset anyone's password.
+      const { data: target } = await admin.from('adult_profiles').select('id').eq('id', learnerId).maybeSingle()
+      if (!target) return json({ error: 'Not allowed.' }, 403)
       const { data: can } = await userClient.rpc('staff_can_see_learner', { p_learner: learnerId })
       if (can !== true) return json({ error: 'Not allowed.' }, 403)
       const pin = randomPin()
       const { error } = await admin.auth.admin.updateUserById(learnerId, { password: pin })
       if (error) return json({ error: 'COULD_NOT_RESET' }, 400)
+      await admin.from('adult_pin_failures').delete().eq('user_id', learnerId)     // a new PIN also clears any wrong-PIN lock (table from migration 025)
       await admin.from('adult_audit_log').insert({ actor_id: caller.id, action: 'reset_pin', learner_id: learnerId, details: {} })
       return json({ ok: true, pin })
     }

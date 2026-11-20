@@ -12,6 +12,7 @@ import { needsPractice, TRACE_OK } from './progress.js'
 import { LESSONS as LIT } from './curriculum.js'
 import { LESSONS as NUM } from './numeracy.js'
 import { LESSONS as DIG, SAFETY_UNIT } from './digital.js'
+import { dynamicLessonInfo, dynamicLessons, dynamicUnitIds } from './content.js'
 
 // ---------------------------------------------------------------------------------------------- thresholds
 // One place to change a rule. Each support flag below quotes the numbers it used.
@@ -30,7 +31,7 @@ export const T = {
   WEEKS: 8,                   // length of the "over time" view
 }
 
-export const AREAS = ['read', 'write', 'count', 'apply', 'digital', 'safety']
+export const AREAS = ['read', 'write', 'count', 'apply', 'digital', 'safety', 'other']
 const APPLIED_NUM_UNITS = ['money', 'measure', 'finance']
 const lit = Object.fromEntries(LIT.map((l) => [l.key, l.unit]))
 const num = Object.fromEntries(NUM.map((l) => [l.key, l.unit]))
@@ -40,6 +41,8 @@ export function lessonInfo(key) {
   if (key in lit) return { course: 'literacy', unit: lit[key], applied: lit[key] === 'messages' }
   if (key in num) return { course: 'numeracy', unit: num[key], applied: APPLIED_NUM_UNITS.includes(num[key]) }
   if (key in dig) return { course: 'digital', unit: dig[key], applied: false }
+  const d = dynamicLessonInfo(key)           // a lesson written in the dashboard
+  if (d) return { course: d.course, unit: d.unit, applied: false, area: d.area }
   return null
 }
 export const APPLIED_KEYS = [...NUM.filter((l) => APPLIED_NUM_UNITS.includes(l.unit)).map((l) => l.key), ...LIT.filter((l) => l.unit === 'messages').map((l) => l.key)]
@@ -63,6 +66,10 @@ export function skillAreas(progress) {
     if ((info.course === 'literacy' && !info.applied) || info.course === 'numeracy') {
       if (row.best_trace != null) add('write', 1, Number(row.best_trace) >= TRACE_OK ? 1 : 0)
       if (row.write_rating in RATE) add('write', 1, RATE[row.write_rating])
+    }
+    if (info.course === 'custom') {   // a course written in the dashboard: its multiple-choice / tap / scam answers count toward the skill area the admin chose for the course
+      if ((r.pickTotal || 0) > 0) add(AREAS.includes(info.area) ? info.area : 'other', r.pickTotal, Math.min(r.pickRight || 0, r.pickTotal))
+      continue
     }
     if (info.course === 'digital') {   // phone and internet skills; scam / safety questions are pooled separately. All multiple choice or tap-the-place, marked automatically.
       if ((r.pickTotal || 0) > 0) add(info.unit === SAFETY_UNIT ? 'safety' : 'digital', r.pickTotal, Math.min(r.pickRight || 0, r.pickTotal))
@@ -239,14 +246,14 @@ export function learnerView(prog, att, subs, now = new Date()) {
     letters: unit(LIT, ['letters']), words: unit(LIT, ['words', 'name']), sentences: unit(LIT, ['sentences', 'messages']),
     digits: unit(NUM, ['numbers', 'compare']),
     calc: unit(NUM, ['add_sub', 'mult_div']), applied: unit(NUM, ['money', 'measure', 'finance']),
-    digital: unit(DIG, ['phone', 'calls', 'texts', 'chat', 'web', 'search']), safety: unit(DIG, [SAFETY_UNIT]),
+    digital: unit(DIG, ['phone', 'calls', 'texts', 'chat', 'web', 'search']), safety: unit(DIG, [SAFETY_UNIT]), other: unit(dynamicLessons(), dynamicUnitIds()),
     writtenRight: maths.writtenItems ? Math.round(maths.writtenPct * maths.writtenItems) : 0, writtenTotal: maths.writtenItems,
     areas, practise, attendance: a, markedWork: marked.length, anyProgress: rows.length > 0,
     next: nextLessonKey(byKey),
   }
 }
 function nextLessonKey(byKey) {
-  const all = [...LIT, ...NUM, ...DIG]
+  const all = [...LIT, ...NUM, ...DIG, ...dynamicLessons()]
   const started = all.filter((l) => byKey[l.key] && byKey[l.key].status !== 'completed')[0]
   return started ? started.key : null
 }

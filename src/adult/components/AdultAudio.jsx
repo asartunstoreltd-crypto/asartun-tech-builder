@@ -2,29 +2,49 @@ import { useEffect, useRef, useState } from 'react'
 import { getAudio } from '../../lib/narration.js'
 import { useAdult } from '../AdultAuth.jsx'
 import { speak, stopSpeaking, useVoices, hasVoice } from '../speech.js'
+import { clipFor, getAudioClient } from '../content.js'
+import { signedAudioUrl } from '../adultApi.js'
 
-// Plays sound for a piece of text. Order: (1) a recording named adult.<id> if one was added to src/assets/audio/<lang>/,
-// (2) the phone's own voice for that language. If neither exists the button is NOT shown.
-//   id    recording name (optional)       text  what the phone voice should say (optional)
+// Plays sound for a piece of text. Order: (1) a recording the admin made or uploaded in the dashboard for this text key (audioKey), if the text has not
+// changed since, (2) a recording named adult.<id> if one was added to src/assets/audio/<lang>/, (3) the phone's own voice for that language.
+// If none exists the button is NOT shown.
+//   id    recording name (optional)       text  what the phone voice should say (optional)      audioKey  the text key, to find a dashboard recording (optional)
 //   lang  language of the text: defaults to the interface language; pass 'ha' for Hausa words.
 let current = null
 export const hasAdultAudio = (lang, id) => Boolean(getAudio(lang, 'adult.' + id))
 
-export default function AdultAudio({ id, text, lang, big = false }) {
+const urlCache = new Map()      // storage path -> { url, until }
+async function clipUrl(path) {
+  const hit = urlCache.get(path)
+  if (hit && hit.until > Date.now()) return hit.url
+  const url = await signedAudioUrl(getAudioClient(), path)
+  if (url) urlCache.set(path, { url, until: Date.now() + 50 * 60 * 1000 })
+  return url
+}
+
+export default function AdultAudio({ id, text, lang, audioKey, big = false }) {
   const { lang: uiLang, t, profile } = useAdult()
   useVoices()                                          // re-render when the phone's voices finish loading
   const [playing, setPlaying] = useState(false)
   const ref = useRef(null)
   const l = lang || uiLang
   const file = id ? getAudio(l, 'adult.' + id) : null
+  const clip = audioKey ? clipFor(l, audioKey) : null
   const canSpeak = Boolean(text) && hasVoice(l)
   useEffect(() => () => { if (current === ref.current) { ref.current?.pause?.(); stopSpeaking() } }, [])
-  if ((!file && !canSpeak) || (profile && profile.audio_on === false)) return null
+  if ((!file && !clip && !canSpeak) || (profile && profile.audio_on === false)) return null
   const toggle = () => {
     if (playing) { ref.current?.pause?.(); stopSpeaking(); setPlaying(false); return }
     if (current && current !== ref.current) current.pause?.()
     stopSpeaking()
-    if (file) {
+    if (clip) {                                                       // the admin's recording; if it cannot be fetched, fall back to the phone's voice
+      clipUrl(clip.path).then((url) => {
+        if (!url) { if (canSpeak) { setPlaying(true); if (!speak(text, l, () => setPlaying(false))) setPlaying(false) } return }
+        ref.current = new Audio(url); ref.current.onended = () => setPlaying(false); ref.current.onpause = () => setPlaying(false)
+        current = ref.current
+        ref.current.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
+      })
+    } else if (file) {
       if (!ref.current) { ref.current = new Audio(file); ref.current.onended = () => setPlaying(false); ref.current.onpause = () => setPlaying(false) }
       current = ref.current; ref.current.currentTime = 0
       ref.current.play().then(() => setPlaying(true)).catch(() => setPlaying(false))

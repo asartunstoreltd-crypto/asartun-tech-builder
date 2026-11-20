@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAdult } from '../AdultAuth.jsx'
 import { SCREENS } from '../digital.js'
+import AdultAudio from './AdultAudio.jsx'
 
 // A generic, drawn phone screen (no real app logos). Elements marked 'btn' can be touched; 'decor' ones are only drawn.
 // Used by the "tap the right place" step of the digital literacy course. Marked automatically; nothing is typed.
@@ -54,6 +55,7 @@ export function TapStep({ step, onAnswer, onNext }) {
   return (
     <>
       <p className="ad-big">{t(step.askKey)}</p>
+      <AdultAudio text={t(step.askKey)} audioKey={step.askKey} />
       <p className="ad-note">{t('dlTapHint')}</p>
       <PhoneScreen screen={step.screen} picked={picked} target={step.target} onTap={pick} />
       {picked && (picked === step.target ? <p className="ad-ok ad-big" role="status">{t('dlTapRight')}</p> : <p className="ad-note ad-big" role="status">{t('dlTapWrong')}</p>)}

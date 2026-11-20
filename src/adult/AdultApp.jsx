@@ -2,7 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AdultProvider } from './AdultAuth.jsx'
 import { Landing, Login, Register } from './pages/Public.jsx'
 import { AssessmentPage, Courses, Help, Home, Practice, Shell } from './pages/Learner.jsx'
-import { LessonList, LessonPlayer } from './pages/Lessons.jsx'
+import { CourseBySlug, LessonList, LessonPlayer } from './pages/Lessons.jsx'
 import { WorkDetail, WorkList } from './pages/Work.jsx'
 import Progress from './pages/Progress.jsx'
 import { CertificatePage } from './pages/Certificate.jsx'
@@ -28,6 +28,7 @@ export default function AdultApp() {
             <Route path="learn" element={<LessonList slug="basic-literacy" />} />
             <Route path="numeracy" element={<LessonList slug="basic-numeracy" />} />
             <Route path="digital" element={<LessonList slug="basic-digital" />} />
+            <Route path="c/:slug" element={<CourseBySlug />} />
             <Route path="payments" element={<PaymentHistory />} />
             <Route path="certificate/:id" element={<CertificatePage />} />
             <Route path="learn/:key" element={<LessonPlayer />} />

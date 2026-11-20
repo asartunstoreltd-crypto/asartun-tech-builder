@@ -1,6 +1,6 @@
 /* ASARTUN ADULT LEARNING — plain, calm, large. Scoped to .adult so it never touches the children's app. */
 .adult { --ink:#14202b; --muted:#4b5a68; --bg:#f7f5ef; --card:#fff; --line:#cfd6dc; --brand:#0d5c63; --brand-ink:#fff; --bad:#a32020; --good:#1d6b3a;
-  min-height:100vh; background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:20px; line-height:1.5; }
+  min-height:100vh; min-height:100dvh; background:var(--bg); color:var(--ink); overflow-wrap:anywhere; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:20px; line-height:1.5; }
 @media (prefers-color-scheme: dark) { .adult { --ink:#eef2f5; --muted:#b4c0cb; --bg:#10181f; --card:#1a252e; --line:#33424f; --brand:#4fc1c8; --brand-ink:#08262a; --bad:#ff9b9b; --good:#7fd89b; } }
 .adult *, .adult *::before, .adult *::after { box-sizing:border-box; }
 .ad-shell { display:flex; flex-direction:column; min-height:100vh; }
@@ -19,12 +19,13 @@
 .ad-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between; } .ad-row > input { flex:1 1 180px; }
 .ad-btn { display:inline-flex; align-items:center; justify-content:center; text-align:center; min-height:60px; padding:12px 18px; border-radius:14px; border:2px solid var(--brand); background:var(--card); color:var(--brand); font:inherit; font-weight:600; text-decoration:none; cursor:pointer; }
 .ad-btn.primary { background:var(--brand); color:var(--brand-ink); } .ad-btn:disabled { opacity:.45; cursor:not-allowed; }
-.ad-btn:focus-visible, .ad-link:focus-visible, .adult input:focus-visible, .adult select:focus-visible, .hw-btn:focus-visible, .ad-tabs a:focus-visible { outline:3px solid #f2a900; outline-offset:2px; }
-.ad-link { background:none; border:0; color:var(--brand); font:inherit; text-decoration:underline; padding:10px 4px; cursor:pointer; align-self:flex-start; }
+.ad-btn:focus-visible, .ad-link:focus-visible, .adult input:focus-visible, .adult select:focus-visible, .adult textarea:focus-visible, .adult button:focus-visible, .hw-btn:focus-visible, .ad-tabs a:focus-visible { outline:3px solid #f2a900; outline-offset:2px; }
+.ad-link { min-height:48px; display:inline-flex; align-items:center; background:none; border:0; color:var(--brand); font:inherit; text-decoration:underline; padding:10px 4px; cursor:pointer; align-self:flex-start; }
 .ad-form { display:flex; flex-direction:column; gap:14px; } .ad-form label { display:flex; flex-direction:column; gap:6px; font-weight:600; }
+.adult textarea { min-height:112px; padding:10px 14px; font:inherit; border:2px solid var(--line); border-radius:12px; background:var(--card); color:var(--ink); resize:vertical; }
 .adult input:not([type=checkbox]), .adult select { min-height:56px; padding:10px 14px; font:inherit; border:2px solid var(--line); border-radius:12px; background:var(--card); color:var(--ink); }
 .ad-check { flex-direction:row !important; align-items:flex-start; gap:12px !important; font-weight:400 !important; } .ad-check input { width:28px; height:28px; flex:none; margin-top:2px; }
-.ad-lang { display:flex; gap:8px; align-self:flex-end; } .ad-lang button { min-height:44px; padding:6px 14px; border-radius:10px; border:2px solid var(--line); background:var(--card); color:var(--ink); font:inherit; cursor:pointer; } .ad-lang .on { border-color:var(--brand); font-weight:700; }
+.ad-lang { display:flex; gap:8px; align-self:flex-end; } .ad-lang button { min-height:48px; padding:6px 14px; border-radius:10px; border:2px solid var(--line); background:var(--card); color:var(--ink); font:inherit; cursor:pointer; } .ad-lang .on { border-color:var(--brand); font-weight:700; }
 .ad-tabs { position:fixed; left:0; right:0; bottom:0; display:grid; grid-template-columns:repeat(4,1fr); background:var(--card); border-top:2px solid var(--line); padding-bottom:env(safe-area-inset-bottom,0); z-index:5; }
 .ad-tabs a { display:flex; align-items:center; justify-content:center; min-height:68px; color:var(--muted); text-decoration:none; font-weight:600; font-size:1rem; } .ad-tabs a.on { color:var(--brand); box-shadow:inset 0 4px 0 var(--brand); }
 .ad-progress { height:10px; background:var(--line); border-radius:6px; overflow:hidden; } .ad-progress i { display:block; height:100%; background:var(--brand); }

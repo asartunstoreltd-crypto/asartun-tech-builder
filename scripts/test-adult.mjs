@@ -123,7 +123,7 @@ for (const k of used) ok(kha.includes(k), `string key used in code but missing: 
 
 // ---------- SQL structure ----------
 const sqlDir = 'supabase/migrations'
-const sql = readdirSync(sqlDir).filter((f) => /^0(1[789]|2[0-4])_adult/.test(f)).map((f) => readFileSync(join(sqlDir, f), 'utf8')).join('\n')
+const sql = readdirSync(sqlDir).filter((f) => /^0(1[789]|2[0-6])_adult/.test(f)).map((f) => readFileSync(join(sqlDir, f), 'utf8')).join('\n')
 const tables = [...sql.matchAll(/create table if not exists public\.(adult_[a-z_]+)/g)].map((m) => m[1])
 ok(tables.length >= 10, 'found adult tables: ' + tables.length)
 for (const t of tables) ok(new RegExp(`alter table public\\.${t}\\s+enable row level security`).test(sql), `RLS enabled on ${t}`)
@@ -133,7 +133,7 @@ ok(!/\b(alter|drop)\s+table\s+public\.(profiles|missions|entitlements|payment_re
 const defs = [...sql.matchAll(/create or replace function public\.(adult_[a-z_]+|is_adult_[a-z]+|staff_can_see_learner)\([^)]*\)[\s\S]*?as \$\$[\s\S]*?\$\$;/g)]
 ok(defs.length >= 12, 'functions found: ' + defs.length)
 for (const m of defs) ok(/security definer set search_path = ''/.test(m[0]), `${m[1]}: security definer with empty search_path`)
-for (const m of defs) if (!/adult_expired_submissions|adult_purge_delete|adult_grant_access|adult_calc_standard/.test(m[1]) && !/staff_can_see_learner|is_adult_staff|is_adult_learner|adult_can_manage_class|adult_can_manage_assignment|adult_learner_in_assignment_class|adult_feedback_visible|adult_log\b|adult_touch|auth\.uid\(\)/.test(m[0].slice(m[0].indexOf('as $$')))) ok(false, `${m[1]}: no caller check`)
+for (const m of defs) if (!/adult_expired_submissions|adult_purge_delete|adult_grant_access|adult_calc_standard|adult_password_hook|adult_cleanup_attempts|adult_cms_bi|adult_cms_valid/.test(m[1]) && !/staff_can_see_learner|is_adult_staff|is_adult_learner|adult_can_manage_class|adult_can_manage_assignment|adult_learner_in_assignment_class|adult_feedback_visible|adult_log\b|adult_touch|auth\.uid\(\)/.test(m[0].slice(m[0].indexOf('as $$')))) ok(false, `${m[1]}: no caller check`)
 ok(/grant select on[\s\S]*to authenticated/.test(sql) && !/grant (insert|delete|all)/i.test(sql), 'browser role gets SELECT only')
 ok(/grant update \(display_name, language, low_data, audio_on\) on public\.adult_profiles/.test(sql), 'learner can edit only comfort settings')
 ok(!/m\.class_id = id\b/.test(sql) && /m\.class_id = public\.adult_classes\.id/.test(sql), 'class policy compares the CLASS id (an unqualified id would bind to the member row)')
@@ -243,7 +243,7 @@ ok(/phone ~ '\^\\\+\[0-9\]\{10,15\}\$'/.test(sql), 'database re-checks phone for
   ok(!/(insert|update|delete)\s+(into|on)?\s*public\.adult_lesson_progress[^;]*to authenticated/i.test(sql19) && !/grant (insert|update|delete)/i.test(sql19), 'progress is written only through the function')
   const speech = readFileSync('src/adult/speech.js', 'utf8'), audio = readFileSync('src/adult/components/AdultAudio.jsx', 'utf8')
   ok(/voiceFor\(lang\)/.test(speech) && /if \(!synth \|\| !v/.test(speech), "phone voice is used only when it has a voice for that language")
-  ok(/canSpeak = Boolean\(text\) && hasVoice\(l\)/.test(audio) && /\(!file && !canSpeak\)\) \|\| /.test(audio) || /if \(\(!file && !canSpeak\)/.test(audio), 'no listen button without a voice or recording')
+  ok(/canSpeak = Boolean\(text\) && hasVoice\(l\)/.test(audio) && /if \(\(!file && !clip && !canSpeak\)/.test(audio), 'no listen button without a voice or recording (file, dashboard recording or phone voice)')
   ok(!/fetch\(|XMLHttpRequest|https?:\/\//.test(speech), 'speech uses no network')
 }
 
@@ -776,7 +776,7 @@ import * as R from '../src/adult/reports.js'
   ok(!/supabase|service_role|secret/i.test(pay.replace(/learnerApi/g, '')) && !/supabase|service_role/i.test(adm.replace(/staffApi/g, '')), 'payment screens go through the API layer; no keys in the browser code')
   ok(/payNever/.test(pay) && /never type a pin|never type a bank card|Never type a PIN or a bank card/i.test(strings.en.payNever), 'the payment screen tells people never to type a PIN or card number')
   ok(!/type="password"|cardnumber|cc-number|autoComplete="cc/i.test(pay), 'no card or PIN field in the payment screen')
-  ok(/\['courses', 'tCourses'\], \['payments', 'tPayments'\]/.test(teach8) && /role === 'adult_admin' \? \[\['courses'/.test(teach8) && /tab === 'payments' && role === 'adult_admin'/.test(teach8) && /tab === 'courses' && role === 'adult_admin'/.test(teach8), 'courses and payments are adult-admin screens (hidden and refused for facilitators)')
+  ok(/\['courses', 'tCourses'\], \['content', 'tContent'\], \['payments', 'tPayments'\]/.test(teach8) && /role === 'adult_admin' \? \[\['courses'/.test(teach8) && /tab === 'payments' && role === 'adult_admin'/.test(teach8) && /tab === 'courses' && role === 'adult_admin'/.test(teach8), 'courses and payments are adult-admin screens (hidden and refused for facilitators)')
   ok(/c\.status === 'published' && !enrolled && c\.is_free && <button/.test(lrn) && !/!enrolled && !c\.is_free[^\n]*enroll\(/.test(lrn), 'the "join" button calls enrol only for FREE courses')
   ok(/to="\/adult\/payments"/.test(lrn) && /path="payments" element=\{<PaymentHistory \/>\}/.test(rd('src/adult/AdultApp.jsx')), 'learner payment history')
   ok(/staffApi\.verifyPayment\(p\.id\), true/.test(adm) && /apCheckMoney/.test(adm), 'accepting a payment reminds the admin to check the money first')
@@ -810,6 +810,362 @@ import * as R from '../src/adult/reports.js'
   ok(/<CertificatesTab role=\{role\} \/>/.test(teach8) && /\['certificates', 'tCertificates'\]/.test(teach8), 'staff can see certificates')
   ok(/window\.print\(\)/.test(rd('src/adult/pages/Certificate.jsx')) && /ad-cert/.test(rd('src/adult/adult.css')), 'a certificate can be printed')
   const sdep = JSON.parse(rd('package.json')); eq(Object.keys(sdep.dependencies).sort(), ['@supabase/supabase-js', 'lucide-react', 'react', 'react-dom', 'react-router-dom'], 'still no new dependency')
+}
+
+
+// ================================================================= PHASE 9: whole-module security, contract, mobile and regression checks
+import { existsSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+{
+  const rd = (f) => readFileSync(f, 'utf8')
+  const strip = (x) => x.replace(/--.*$/gm, '')
+  const migFiles = readdirSync('supabase/migrations').filter((f) => /^0(1[789]|2[0-6])_adult/.test(f)).sort()
+  eq(migFiles.length, 10, 'migrations 017-026 are all present')
+  const SQL = migFiles.map((f) => strip(rd('supabase/migrations/' + f))).join('\n')
+
+  // ---------- A. the database as a whole ----------
+  ok(!/grant[^;]*\bto\b[^;]*\banon\b/i.test(SQL), 'nothing is ever granted to anonymous visitors (all 9 migrations)')
+  const writeGrants = [...SQL.matchAll(/grant\s+(insert|update|delete|truncate|all)\b[^;]*\bto\b[^;]*authenticated/gi)].map((m) => m[0].replace(/\s+/g, ' '))
+  eq(writeGrants, ['grant update (display_name, language, low_data, audio_on) on public.adult_profiles to authenticated'], 'the ONLY write right a browser has: four own preference columns on the own profile row')
+  ok(/create policy "adult_profiles: update own settings" on public\.adult_profiles for update to authenticated\s+using \(id = auth\.uid\(\)\) with check \(id = auth\.uid\(\)\)/.test(SQL) && /display_name\s+text check \(display_name is null or char_length\(display_name\) <= 30\)/.test(SQL), 'that right is limited to the learner\'s own row and the name has a length limit')
+  ok(!/(using|with check)\s*\(\s*true\s*\)/i.test(SQL), 'no policy that lets everyone in')
+  const tables = [...SQL.matchAll(/create table if not exists public\.(adult_[a-z_]+)/g)].map((m) => m[1])
+  ok(tables.length >= 20, `found ${tables.length} adult tables`)
+  for (const t of tables) ok(new RegExp(`alter table public\\.${t}\\s+enable row level security`).test(SQL), `RLS on ${t}`)
+  const defs = [...SQL.matchAll(/create or replace function public\.(\w+)\(([^)]*)\)([\s\S]*?)(?=create or replace function|create table|do \$\$|$)/g)]
+  eq(defs.length, (SQL.match(/create or replace function public\./g) || []).length, 'every function definition was read')
+  for (const m of defs) ok(/security definer\s+set search_path = ''/.test(m[3].slice(0, 400)), `${m[1]}: security definer with an empty search path`)
+  ok((SQL.match(/delete from auth\.users/g) || []).length === 1 && /adult_delete_my_account\(\)[\s\S]{0,400}delete from auth\.users where id = auth\.uid\(\)/.test(SQL), 'the only place that deletes a login is "delete my own account"')
+  const execs = [...SQL.replace(/\b(grant|revoke) execute\b/gi, '$1 EXE').matchAll(/\bexecute\s+(\w+)(\s*\('?[a-z ]*)?/gi)].map((m) => m[1].toLowerCase() + (m[1].toLowerCase() === 'format' ? ' ' + (m[2] || '').replace(/[('\s]+/g, ' ').trim().split(' ').slice(0, 3).join(' ') : ''))
+  ok(execs.length > 0 && execs.every((e) => e === 'function' || /^format (revoke all on|grant EXE on)/i.test(e) || /^format (revoke|grant)/i.test(e)), 'no dynamic SQL except the grant loops (and trigger "execute function")')
+  ok(!/service_role/.test(SQL.replace(/grant execute on function[^;]*to service_role;/gi, '')), 'service_role is mentioned only to grant internal functions to it')
+  ok(!/password|pin_hash|plain/i.test(tables.join(' ')), 'no table is meant to hold passwords or PINs')
+
+  // ---------- B. the app and the database agree ----------
+  const fns = {}
+  for (const m of defs) fns[m[1]] = m[2].split(',').map((x) => x.trim()).filter(Boolean).map((x) => ({ name: x.split(/\s+/)[0], optional: /\bdefault\b/i.test(x) }))
+  const granted = new Set()
+  for (const f of migFiles) {
+    const code = strip(rd('supabase/migrations/' + f))
+    for (const blk of code.match(/do \$\$[\s\S]*?end \$\$;/g) || []) if (/grant execute on function public\.%s to authenticated/.test(blk)) for (const m of blk.matchAll(/'(\w+)\(/g)) granted.add(m[1])
+    for (const m of code.matchAll(/grant execute on function public\.(\w+)\([^)]*\) to authenticated/gi)) granted.add(m[1])
+    for (const m of code.matchAll(/revoke execute on function public\.(\w+)\([^)]*\) from authenticated/gi)) granted.delete(m[1])
+  }
+  const internal = Object.keys(fns).filter((f) => !granted.has(f)).sort()
+  eq(internal, ['adult_calc_standard', 'adult_cleanup_attempts', 'adult_cms_bi', 'adult_cms_valid', 'adult_expired_submissions', 'adult_grant_access', 'adult_log', 'adult_password_hook', 'adult_purge_delete'], 'exactly these functions are NOT callable by a browser (internal, server or Supabase Auth only); every other function is')
+  const srcFiles = []
+  ;(function walk(d) { for (const e of readdirSync(d)) { const p = d + '/' + e; statSync(p).isDirectory() ? walk(p) : /\.(js|jsx)$/.test(e) && srcFiles.push(p) } })('src/adult')
+  const calls = []
+  for (const f of srcFiles) { const t = rd(f); for (const m of t.matchAll(/rpc\(\s*(?:supabase\w+\s*,\s*)?'(\w+)'\s*(?:,\s*\{([^}]*)\})?/g)) calls.push({ f, fn: m[1], args: [...(m[2] || '').matchAll(/(p_\w+)\s*:/g)].map((x) => x[1]) }) }
+  ok(calls.length >= 35, `${calls.length} database calls found in the app`)
+  for (const c of calls) {
+    ok(c.fn in fns, `${c.fn} exists in the database`)
+    if (!(c.fn in fns)) continue
+    ok(granted.has(c.fn), `${c.fn} may be called by signed-in users`)
+    const names = fns[c.fn].map((p) => p.name)
+    ok(c.args.every((a) => names.includes(a)), `${c.fn}: the app sends only parameters the database knows (${c.args.join(',')})`)
+    ok(fns[c.fn].filter((p) => !p.optional).every((p) => c.args.includes(p.name)), `${c.fn}: the app sends every required parameter`)
+  }
+  for (const m of rd('supabase/functions/adult-admin/index.ts').matchAll(/rpc\('(\w+)', \{ (p_\w+)/g)) ok(m[1] in fns && fns[m[1]].some((p) => p.name === m[2]) && granted.has(m[1]), `Edge Function call ${m[1]}(${m[2]}) matches the database`)
+  for (const m of rd('supabase/functions/adult-purge/index.ts').matchAll(/rpc\('(\w+)'/g)) ok(m[1] in fns, `purge function calls ${m[1]}, which exists`)
+  // tables and columns the app reads
+  const cols = {}
+  for (const m of SQL.matchAll(/create table if not exists public\.(adult_\w+) \(([\s\S]*?)\n\);/g)) cols[m[1]] = new Set(m[2].split('\n').map((l) => l.trim().split(/[\s,]+/)[0]).filter((w) => /^[a-z_]+$/.test(w) && !/^(primary|unique|check|foreign|constraint)$/.test(w)))
+  for (const m of SQL.matchAll(/alter table public\.(adult_\w+) add column if not exists (\w+)/g)) cols[m[1]].add(m[2])
+  const readable = new Set(); for (const m of SQL.matchAll(/grant select on ([^;]*?) to authenticated/g)) m[1].split(',').forEach((x) => readable.add(x.trim().replace('public.', '')))
+  let selects = 0
+  for (const f of srcFiles) for (const m of rd(f).matchAll(/\.from\('(adult_\w+)'\)\s*\.select\('([^']*)'/g)) {
+    selects++; ok(cols[m[1]], `${m[1]} exists`); ok(readable.has(m[1]), `${m[1]} may be read by signed-in users`)
+    for (const c of m[2].split(',').map((x) => x.trim()).filter((x) => x && x !== '*' && !x.includes('('))) ok(cols[m[1]] && cols[m[1]].has(c), `${m[1]}.${c} exists`)
+  }
+  ok(selects >= 15, `${selects} table reads checked`)
+
+  // ---------- C. every link has a page; every import resolves ----------
+  const app = rd('src/adult/AdultApp.jsx')
+  const routes = [...app.matchAll(/<Route path="([^"]+)"/g)].map((m) => m[1]).filter((r) => r !== '/' && r !== '*')
+  const pats = routes.map((r) => new RegExp('^/adult/' + r.replace(/\/\*$/, '(/.*)?').replace(/:[a-z]+/g, '[^/]+') + '$'))
+  let links = 0
+  for (const f of srcFiles) for (const m of rd(f).matchAll(/(?:to=|navigate\(|nav\(|Navigate to=)\{?\s*['"`](\/adult[a-z0-9/_:-]*)(['"`]?)/g)) {
+    const dyn = m[1].endsWith('/'); const path = dyn ? m[1] + 'x' : m[1]; links++
+    ok(m[1] === '/adult' || m[1] === '/adult/' || pats.some((r) => r.test(path)), `${f.replace('src/adult/', '')}: link ${m[1]} leads to a real page`)
+  }
+  for (const m of rd('src/adult/pages/Learner.jsx').matchAll(/\['(\w+)', 'tab\w+'\]/g)) ok(pats.some((r) => r.test('/adult/' + m[1])), `bottom tab "${m[1]}" has a page`)
+  ok(links >= 25, `${links} links checked`)
+  const exportsOf = (file) => { const t = rd(file); const names = new Set([...t.matchAll(/export (?:async )?(?:function|const|let|class) (\w+)/g)].map((m) => m[1])); for (const m of t.matchAll(/export \{([^}]*)\}/g)) m[1].split(',').forEach((x) => names.add(x.trim().split(/\s+as\s+/).pop())); if (/export default/.test(t)) names.add('default'); return names }
+  let imports = 0
+  for (const f of srcFiles) for (const m of rd(f).matchAll(/import\s+(?:(\w+)\s*,?\s*)?(?:\{([^}]*)\})?(?:\*\s+as\s+\w+)?\s*from\s*'(\.[^']+)'/g)) {
+    const dir = f.slice(0, f.lastIndexOf('/')); const target = new URL(m[3], 'file:///' + dir + '/').pathname.slice(1)
+    imports++; ok(existsSync(target), `${f.replace('src/adult/', '')} imports ${m[3]}, which exists`)
+    if (!existsSync(target) || !/\.(js|jsx)$/.test(target)) continue
+    const ex = exportsOf(target)
+    if (m[1]) ok(ex.has('default'), `${m[3]} has a default export`)
+    if (m[2]) for (const n of m[2].split(',').map((x) => x.trim().split(/\s+as\s+/)[0]).filter(Boolean)) ok(ex.has(n), `${m[3]} exports ${n}`)
+  }
+  ok(imports >= 80, `${imports} imports checked`)
+  for (const k of Object.keys(strings.en)) { const v = (x) => (x.match(/\{[a-z]+\}/gi) || []).sort().join(); ok(v(strings.en[k]) === v(strings.ha[k]), `Hausa and English use the same {placeholders}: ${k}`) }
+
+  // ---------- D. the children's app, /admin and /org are untouched ----------
+  const base = JSON.parse(rd('scripts/baseline-v0_9_7.json')).files
+  for (const [f, h] of Object.entries(base)) ok(existsSync(f) && createHash('sha256').update(readFileSync(f)).digest('hex') === h, `unchanged since v0_9_7: ${f}`)
+  const allowedNew = [/^src\/adult\//, /^supabase\/migrations\/0(1[789]|2[0-9])_adult/, /^supabase\/functions\/adult-/, /^supabase\/schedule\//, /^docs\/ADULT_/, /^scripts\/test-adult\.mjs$/, /^scripts\/baseline-/, /^vercel\.json$/, /^public\/_headers$/]
+  const stray = []
+  ;(function walk(d) { for (const e of readdirSync(d)) { if (e === 'node_modules' || e === '.git') continue; const p = d === '.' ? e : d + '/' + e; statSync(p).isDirectory() ? walk(p) : (!(p in base) && !allowedNew.some((r) => r.test(p)) && stray.push(p)) } })('.')
+  eq(stray, [], 'no file outside the adult module was added or changed')
+  const main = rd('src/main.jsx'); ok(/path="\/adult\/\*"/.test(main) && /lazy\(\(\) => import\('\.\/adult\/AdultApp\.jsx'\)\)/.test(main), 'the adult module is still one lazy route in main.jsx')
+  ok(['/admin', '/org'].every((r) => main.includes('"' + r)) || /path="\/admin/.test(main), 'the children\'s routes are still there')
+
+  // ---------- E. browser security headers (only for /adult) ----------
+  const vj = JSON.parse(rd('vercel.json')); const hs = vj.headers || []
+  ok(hs.length >= 2 && hs.every((h) => /^\/adult(\/|$)/.test(h.source)), 'security headers apply to /adult only; the children\'s routes get none')
+  ok(vj.rewrites.some((r) => r.source === '/(.*)' && r.destination === '/index.html'), 'the single-page rewrite is intact')
+  const hv = (k) => (hs[0].headers.find((h) => h.key === k) || {}).value || ''
+  const csp = hv('Content-Security-Policy')
+  ok(/default-src 'self'/.test(csp) && /script-src 'self'(;|$)/.test(csp) && /frame-ancestors 'none'/.test(csp) && /object-src 'none'/.test(csp) && /base-uri 'self'/.test(csp) && /form-action 'self'/.test(csp), 'CSP: own scripts only, no framing, no plugins')
+  ok(!/unsafe-eval|script-src[^;]*unsafe-inline|script-src[^;]*\*|default-src[^;]*\*/.test(csp), 'CSP allows no eval, no inline scripts, no wildcard scripts')
+  ok(/connect-src 'self' https:\/\/\*\.supabase\.co/.test(csp) && /img-src[^;]*blob:/.test(csp), 'CSP still allows Supabase and photo previews')
+  ok(hv('X-Content-Type-Options') === 'nosniff' && hv('X-Frame-Options') === 'DENY' && /strict-origin/.test(hv('Referrer-Policy')) && /camera=\(\)/.test(hv('Permissions-Policy')), 'nosniff, no framing, referrer and permissions policies')
+  const hf = rd('public/_headers'); for (const h of hs[0].headers) eq(hf.split(h.key + ': ' + h.value).length - 1, hs.length, `Netlify headers file carries ${h.key} for every /adult path`)
+  ok(!/<script(?![^>]*\bsrc=)[^>]*>[^<]/i.test(rd('index.html')) && !/https?:\/\//.test(rd('index.html')), 'index.html has no inline script and no outside resource, so the strict CSP cannot break it')
+  ok(!/user-scalable\s*=\s*no|maximum-scale/i.test(rd('index.html')), 'pinch-zoom is not disabled')
+
+  // ---------- F. secrets and Edge Functions ----------
+  const front = []
+  ;(function walk(d) { for (const e of readdirSync(d)) { const p = d + '/' + e; statSync(p).isDirectory() ? walk(p) : /\.(js|jsx|css|html|json)$/.test(e) && front.push(p) } })('src')
+  for (const f of [...front, 'index.html', 'vite.config.js']) ok(!/service_role|SERVICE_ROLE|PURGE_SECRET|sk_live|sk_test|PAYSTACK_SECRET|FLW_SECRET|-----BEGIN/i.test(rd(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '')), `no secret in browser code (comments aside): ${f}`)
+  ok(!readdirSync('.').some((f) => /^\.env(\.|$)/.test(f) && f !== '.env.example'), 'no .env file is shipped')
+  const adm = rd('supabase/functions/adult-admin/index.ts')
+  const rp = adm.slice(adm.indexOf("action === 'reset_pin'"), adm.indexOf("action === 'create_staff'"))
+  ok(rp.indexOf("from('adult_profiles').select('id').eq('id', learnerId)") > -1 && rp.indexOf("from('adult_profiles')") < rp.indexOf('updateUserById') && /if \(!target\) return json\(\{ error: 'Not allowed\.' \}, 403\)/.test(rp), 'reset PIN works ONLY on adult learners (it could otherwise reset any account in the shared login system)')
+  ok(/\^\[0-9a-f\]\{8\}-/.test(rp) && rp.indexOf('^[0-9a-f]{8}-') < rp.indexOf('from(\'adult_profiles\')'), 'reset PIN rejects a malformed id first')
+  ok(/adult_pin_failures'\)\.delete\(\)\.eq\('user_id', learnerId\)/.test(rp), 'a PIN reset also clears the wrong-PIN lock')
+  ok(!/console\.(log|info|debug)/.test(adm + rd('supabase/functions/adult-purge/index.ts')), 'the Edge Functions never log (PINs and secrets cannot leak to logs)')
+  ok(/count: perIp[\s\S]{0,200}>= 5 \|\| \(perDay \?\? 0\) >= 300/.test(adm) || />= 5 \|\| \(perDay \?\? 0\) >= 300/.test(adm), 'self-registration is limited per address and per day')
+  ok(/Deno\.env\.get\('SUPABASE_SERVICE_ROLE_KEY'\)/.test(adm) && !/Access-Control-Allow-Credentials/.test(adm), 'the service key comes only from the server environment; no cookies or credentials over CORS')
+  const pg = rd('supabase/functions/adult-purge/index.ts')
+  ok(pg.indexOf("storage.from('adult-submissions').remove") > -1 && pg.indexOf("storage.from('adult-submissions').remove") < pg.indexOf("rpc('adult_purge_delete'"), 'purge: files are removed BEFORE database rows')
+  ok(/if \(re\) return json/.test(pg) && /never delete rows while files remain/.test(pg), 'purge: stops without deleting rows if a file could not be removed')
+  ok(/safeEqual\(secret, given\)/.test(pg) && /secret\.length < 24/.test(pg) && /method !== 'POST'/.test(pg), 'purge: constant-time secret check, 24+ characters, POST only')
+  ok(/adult_cleanup_attempts/.test(pg) && /action: 'purge'/.test(pg), 'purge also cleans old attempt records and leaves a line in the audit log')
+
+  // ---------- G. wrong-PIN lock (migration 025) ----------
+  const m25 = strip(rd('supabase/migrations/025_adult_security.sql'))
+  const hook = (m25.match(/create or replace function public\.adult_password_hook[\s\S]*?end \$\$;/) || [''])[0]
+  ok(/not exists \(select 1 from public\.adult_profiles where id = v_user\)[\s\S]{0,80}'continue'/.test(hook), 'the lock only ever applies to adult learners; staff and the children\'s app are never locked')
+  ok(/if r\.user_id is not null and r\.locked_until is not null and r\.locked_until > now\(\) then\s+return jsonb_build_object\('decision', 'reject'/.test(hook) && hook.indexOf("'reject'") < hook.indexOf('if v_valid then'), 'while locked, even the right PIN is refused (so guessing during the lock gains nothing)')
+  ok(/last_failure < now\(\) - interval '15 minutes' then 1 else r\.failures \+ 1/.test(hook) && /v_n >= 5 then now\(\) \+ interval '15 minutes'/.test(hook), '5 wrong PINs within 15 minutes lock for 15 minutes')
+  ok(/if v_valid then\s+delete from public\.adult_pin_failures/.test(hook), 'a correct PIN clears the count')
+  ok(/revoke all on function public\.adult_password_hook\(jsonb\) from public, anon, authenticated/.test(m25) && /grant execute on function public\.adult_password_hook\(jsonb\) to supabase_auth_admin/.test(m25) && !/grant execute on function public\.adult_password_hook[^;]*authenticated/.test(m25.replace(/revoke[^;]*;/g, '')), 'only Supabase Auth may call the hook, not a browser')
+  ok(/revoke all on function public\.adult_cleanup_attempts\(\) from public, anon, authenticated/.test(m25) && /grant execute on function public\.adult_cleanup_attempts\(\) to service_role/.test(m25), 'cleanup is for the server only')
+  ok(/alter table public\.adult_pin_failures enable row level security/.test(m25) && !/grant[^;]*adult_pin_failures/.test(m25), 'the failure counters cannot be read or changed from the browser')
+  ok(/Pro-plan|Pro plan/.test(rd('supabase/migrations/025_adult_security.sql')) && /NOT TESTED against a real Supabase Auth/.test(rd('supabase/migrations/025_adult_security.sql')), 'the migration says plainly that it needs the Pro plan and a dashboard step, and was not tested')
+
+  // ---------- H. the purge schedule ----------
+  const sch = rd('supabase/schedule/adult_purge_schedule.sql')
+  ok(!readdirSync('supabase/migrations').some((f) => /schedule|purge/i.test(f)), 'the schedule is NOT a migration, so it cannot run by accident')
+  ok(/cron\.schedule\(\s*'adult-purge-daily',\s*'0 3 \* \* \*'/.test(sch) && /net\.http_post/.test(sch) && /\/functions\/v1\/adult-purge/.test(sch) && /'x-purge-secret'/.test(sch), 'daily schedule that calls the purge function with the secret header')
+  ok(/vault\.create_secret\('<SAME_PURGE_SECRET>'/.test(sch) && /vault\.decrypted_secrets/.test(sch) && !/PURGE_SECRET\s*=\s*['"][A-Za-z0-9]{20,}/.test(sch), 'the secret is kept in Vault and no real secret is written in the file')
+  ok(/--no-verify-jwt/.test(sch) && /<PROJECT_REF>/.test(sch) && /cron\.unschedule/.test(sch) && /NEVER RUN/.test(sch), 'says how to deploy, what to replace, how to stop it, and that it was never run')
+
+  // ---------- I. phones: touch size, text size, zoom, layout (read from the style sheet) ----------
+  const css = rd('src/adult/adult.css')
+  const minH = (sel) => { const m = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((r) => r[1].split(',').some((x) => x.trim() === sel)).map((r) => (r[2].match(/(?:^|[;\s])min-height:\s*(\d+)px/) || [])[1]).filter(Boolean).map(Number); return Math.max(0, ...m) }
+  for (const [sel, px] of [['.ad-btn', 56], ['.ad-tabs a', 56], ['.ad-lesson', 56], ['.ad-listen', 56], ['.ad-lang button', 48], ['.ad-link', 48], ['.ad-subtabs button', 48], ['.ad-seg button', 48], ['.hw-btn', 48], ['.adult input:not([type=checkbox])', 56], ['.adult textarea', 96]]) ok(minH(sel) >= px, `${sel} is at least ${px}px tall (touch size)`)
+  ok(/\.ad-check input \{[^}]*width:\s*2[4-9]px|\.ad-check input \{[^}]*width:\s*[3-9]\d px/.test(css) || /\.ad-check input \{[^}]*width:\s*28px/.test(css), 'checkboxes are large')
+  ok(Number((css.match(/\.adult \{[^}]*font-size:\s*(\d+)px/) || [])[1]) >= 18, 'base text is at least 18px')
+  ok(!/font-size:\s*(?:[0-9]|1[0-5])px/.test(css) && Math.min(...[...css.matchAll(/font-size:\s*([\d.]+)rem/g)].map((m) => Number(m[1]))) >= 0.85, 'no text smaller than about 17px (screen) anywhere')
+  ok(/overflow-wrap:\s*anywhere/.test(css) && /min-height:\s*100dvh/.test(css), 'long words wrap; the page fills a phone screen even with its address bar')
+  ok(/\.ad-page \{[^}]*max-width:\s*560px/.test(css) && /\.ad-page\.wide \{[^}]*max-width:\s*900px/.test(css), 'single readable column on a phone')
+  ok(/\.ad-tabs \{[^}]*env\(safe-area-inset-bottom/.test(css), 'bottom tabs stay clear of the phone\'s gesture bar')
+  ok([...css.matchAll(/[;\s{]((?:min-|max-)?width):\s*(\d+)px/g)].every((m) => m[1] !== 'width' || Number(m[2]) <= 480), 'no fixed width wider than a small phone')
+  ok(!/\btransition:|\banimation:/.test(css.replace(/@media \(prefers-reduced-motion: no-preference\)[^\n]*/g, '')), 'all motion is switched off for people who asked for less motion')
+  ok(/@media print/.test(css) && /@media \(prefers-color-scheme: dark\)/.test(css), 'print and dark-mode styles exist')
+  ok(/\.adult button:focus-visible/.test(css), 'every button shows a visible focus ring')
+  ok(/touch-action:\s*none/.test((css.match(/\.hw-canvas \{[^}]*\}/) || [''])[0]) && /touch-action:\s*manipulation/.test(css), 'writing canvas does not scroll while drawing; picture taps respond at once')
+  for (const f of srcFiles.filter((x) => x.endsWith('.jsx'))) { const t = rd(f)
+    for (const m of t.matchAll(/<img\b[^>]*>/g)) ok(/\balt=/.test(m[0]), `${f.replace('src/adult/', '')}: every picture has alt text`)
+    for (const m of t.matchAll(/<input\b[^>]*>/g)) { const before = t.slice(Math.max(0, m.index - 420), m.index); const inLabel = before.lastIndexOf('<label') > before.lastIndexOf('</label>'); ok(inLabel || /aria-label|type="hidden"/.test(m[0]), `${f.replace('src/adult/', '')}: input has a label: ${m[0].slice(0, 50)}`) }
+  }
+  const docs = ['ADULT_PHASE2_DESIGN', 'ADULT_PHASE3', 'ADULT_PHASE4', 'ADULT_PHASE5_6', 'ADULT_PHASE7', 'ADULT_PHASE8', 'ADULT_PHASE9']
+  for (const d of docs) ok(existsSync(`docs/${d}.md`), `docs/${d}.md exists`)
+}
+
+
+// ================================================================= PHASE 10: editable texts, recordings, courses and lessons written in the dashboard
+import * as C from '../src/adult/content.js'
+import { registerCourse as regCourse } from '../src/adult/courses.js'
+{
+  const rd = (f) => readFileSync(f, 'utf8')
+  const m26 = rd('supabase/migrations/026_adult_content.sql'), c26 = m26.replace(/--.*$/gm, '')
+  const fnOf = (name) => (c26.match(new RegExp(`create or replace function public\\.${name}\\([^)]*\\)[\\s\\S]*?end \\$\\$;|create or replace function public\\.${name}\\([^)]*\\)[\\s\\S]*?\\$\\$;`)) || [''])[0]
+  const inc = (str) => new RegExp(str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?!\\d)').test(c26)     // text is present and the last number is not just the start of a bigger one
+  const sid = (n) => 'ab12cd' + String(n).padStart(2, '0')
+  const goodLesson = () => ({ title: { ha: 'Kira', en: 'Calling' }, unit: { ha: 'Sashe 1', en: 'Part 1' }, steps: [
+    { id: sid(1), type: 'teach', text: { ha: 'Ka ɗaga waya.', en: 'Pick up the phone.' } },
+    { id: sid(2), type: 'choice', prompt: { ha: 'Wane ne daidai?', en: 'Which is right?' }, options: [{ ha: 'A', en: 'A' }, { ha: 'B', en: 'B' }, { ha: 'C', en: '' }], right: 1, why: { ha: 'Saboda B.', en: 'Because B.' } },
+    { id: sid(3), type: 'scam', text: { ha: 'Aiko PIN ɗinka', en: 'Send your PIN' }, scam: true, why: { ha: 'Zamba ne', en: 'Scam' } },
+    { id: sid(4), type: 'tap', ask: { ha: 'Taɓa kira', en: 'Touch call' }, screen: 'home', target: 'phone' },
+  ] })
+  const course = { id: 'c1', slug: 'farming', title: { ha: 'Noma', en: 'Farming' }, skill_area: 'apply', origin: 'cms', status: 'published' }
+  const mk = (key, content, o = {}) => ({ id: 'l' + key, course_id: 'c1', key, position: 1, status: 'published', title: content.title, content, ...o })
+
+  // ---------- A. text lookup: dashboard text, then a SAFE correction, then the built-in text ----------
+  {
+    C.setOverrides([]); C.registerCmsContent([], [])
+    eq(C.template('ha', 'signOut'), strings.ha.signOut, 'built-in text when nothing was changed')
+    eq(C.template('ha', 'no-such-key'), 'no-such-key', 'an unknown key shows its name, never crashes')
+    C.setOverrides([{ key: 'signOut', lang: 'ha', value: 'Fita (gyara)' }])
+    eq(C.template('ha', 'signOut'), 'Fita (gyara)', 'a published correction replaces the built-in text'); eq(C.template('en', 'signOut'), strings.en.signOut, 'only the language that was corrected changes')
+    ok(C.hasOverride('ha', 'signOut') && !C.hasOverride('en', 'signOut'), 'override flags')
+    ok(strings.en.progressLine.includes('{done}'), 'test text has placeholders')
+    C.setOverrides([{ key: 'progressLine', lang: 'en', value: 'Done: {done}' }])
+    eq(C.template('en', 'progressLine'), strings.en.progressLine, 'a correction that LOSES a {placeholder} is ignored (the app would show a broken sentence)')
+    C.setOverrides([{ key: 'progressLine', lang: 'en', value: 'You did {total} and {done}' }]); eq(C.template('en', 'progressLine'), 'You did {total} and {done}', 'a correction that keeps every {placeholder} (in any order) is used')
+    C.setOverrides([{ key: 'progressLine', lang: 'en', value: 'Only {done} {extra}' }]); eq(C.template('en', 'progressLine'), strings.en.progressLine, 'an extra {placeholder} is ignored too')
+    C.setOverrides([{ key: 'signOut', lang: 'zz', value: 'x' }, { key: 'signOut', lang: 'ha', value: 5 }, { key: 'signOut', lang: 'ha', value: '' }]); eq(C.template('ha', 'signOut'), strings.ha.signOut, 'junk or empty rows are ignored')
+    eq(C.placeholders('a {x} b {y} {x}'), '{x}{x}{y}', 'placeholders are compared as a sorted list'); C.setOverrides([])
+  }
+
+  // ---------- B. recordings play only while the text is unchanged ----------
+  {
+    ok(/^[0-9a-f]{8}$/.test(C.fnv('x')) && C.fnv('abc') === C.fnv('abc') && C.fnv('abc') !== C.fnv('abd') && C.fnv('') !== C.fnv(' '), 'fingerprint: 8 hex digits, stable, sensitive to one letter')
+    eq(C.fnv('Ka ɗaga waya.'), C.fnv('Ka ɗaga waya.'), 'works on Hausa letters')
+    const row = (hash) => ({ key: 'signOut', lang: 'ha', path: 'audio/signOut/ha-1.webm', mime: 'audio/webm', bytes: 10, duration_ms: 1000, text_hash: hash })
+    C.setAudio([row(C.fnv(strings.ha.signOut))]); ok(C.clipFor('ha', 'signOut') && !C.clipStale('ha', 'signOut'), 'a recording that matches its text is used')
+    C.setOverrides([{ key: 'signOut', lang: 'ha', value: 'Wani rubutu daban' }])
+    ok(C.clipFor('ha', 'signOut') === null && C.clipStale('ha', 'signOut') && C.rawClip('ha', 'signOut'), 'after the text is corrected the old recording is skipped (and flagged), not played')
+    C.setAudio([row(C.fnv('Wani rubutu daban'))]); ok(C.clipFor('ha', 'signOut'), 'confirming (or re-recording) brings it back'); eq(C.clipFor('en', 'signOut'), null, 'a Hausa recording is never used for English')
+    C.setAudio([]); C.setOverrides([])
+  }
+
+  // ---------- C. a dashboard lesson becomes the steps the existing player understands ----------
+  {
+    const les = mk('x0123456789ab', goodLesson())
+    const { def, texts } = C.cmsToCourse(course, [les, mk('x0123456789ac', goodLesson(), { status: 'draft' }), mk('x0123456789ad', goodLesson(), { status: 'archived' })])
+    eq(def.lessons.length, 1, 'only PUBLISHED lessons reach learners (drafts and archived ones do not)')
+    const st = def.lessons[0].steps
+    eq(st.map((x) => x.type), ['teach', 'dchoice', 'dchoice', 'tap', 'review'], 'steps map to teach / dchoice / dchoice / tap / review')
+    eq(st[0], { type: 'teach', kind: 'concept', conceptKey: `cms.x0123456789ab.${sid(1)}.text` }, 'teaching page')
+    ok(st[1].optionKeys.length === 3 && st[1].targetKey === st[1].optionKeys[1] && st[1].whyKey, 'choice: the right answer is the option the admin marked, with its reason')
+    eq([...st[2].optionKeys].sort(), ['dlSafe', 'dlScam'], 'scam card offers Safe / Scam'); eq(st[2].targetKey, 'dlScam', 'a scam card marked "scam" is answered "scam"')
+    eq([st[3].screen, st[3].target], ['home', 'phone'], 'tap step keeps its screen and place')
+    eq(C.cmsToCourse(course, [mk('x0123456789ab', { ...goodLesson(), steps: [{ ...goodLesson().steps[3], target: 'nope' }] })]).def.lessons.length, 0, 'a tap step pointing at a place that does not exist is dropped, so a lesson with nothing left is not shown')
+    ok(Object.keys(texts).every((k) => k.startsWith('cms.') && k.length <= 100 && /^[A-Za-z0-9_.:-]+$/.test(k)), 'every text key is valid for the database (letters, digits, . _ : -, up to 100)')
+    ok(Object.values(texts).every((v) => typeof v.ha === 'string' && typeof v.en === 'string'), 'every text has both languages')
+    eq(def.route, '/adult/c/farming', 'course address'); eq(def.kind, 'custom', 'kind custom'); eq(def.area, 'apply', 'skill area from the course')
+    const two = C.cmsToCourse(course, [mk('x0123456789ab', goodLesson(), { position: 1 }), mk('x0123456789ae', { ...goodLesson(), unit: { ha: 'Sashe 2', en: 'Part 2' } }, { position: 2 }), mk('x0123456789af', { ...goodLesson(), unit: undefined }, { position: 3 })])
+    eq(two.def.units.length, 3, 'lessons are grouped by their section label'); eq(two.def.lessons.map((l) => l.key), ['x0123456789ab', 'x0123456789ae', 'x0123456789af'], 'in the admin\'s order')
+  }
+
+  // ---------- D. registering them: the registry, the reports, and the protection of built-in courses ----------
+  {
+    const les = mk('x0123456789ab', goodLesson())
+    C.registerCmsContent([course], [les])
+    ok(COURSES.farming && ALL_LESSONS.some((l) => l.key === 'x0123456789ab') && C.COURSES.farming.cms, 'the course is registered')
+    ok(courseOfLesson('x0123456789ab').slug === 'farming' && anyLessonByKey('x0123456789ab'), 'the player can find the lesson and its course')
+    eq(C.template('ha', `cms.x0123456789ab.${sid(1)}.text`), 'Ka ɗaga waya.', 'its text is found by t()'); eq(C.template('en', `cms.x0123456789ab.${sid(3)}.why`), 'Scam', 'English too')
+    eq(R.lessonInfo('x0123456789ab'), { course: 'custom', unit: C.dynamicLessonInfo('x0123456789ab').unit, applied: false, area: 'apply' }, 'reports know the lesson')
+    const prog = [{ k: 'x0123456789ab', s: 'completed', a: 1, bt: null, bc: null, wr: null, r: { pickRight: 3, pickTotal: 4 }, c: '2026-11-10T09:00:00Z', u: '2026-11-10T09:00:00Z' }]
+    const a = R.skillAreas(prog); eq([a.apply.items, a.apply.good, a.other.items, a.digital.items], [4, 3, 0, 0], 'its answers count toward the skill area the admin chose for the course')
+    C.registerCmsContent([{ ...course, skill_area: 'other' }], [les]); eq(R.skillAreas(prog).other.items, 4, 'a course without a chosen area counts as "other"')
+    ok(R.lessonStats(prog).completed === 1, 'finished dashboard lessons count in the learner\'s lesson totals')
+    ok(R.learnerView(prog, [], [], new Date()).other.done === 1, 'the learner\'s own view counts them')
+    const evil = { slug: 'basic-literacy', kind: 'custom', cms: true, lessons: [], units: [], route: '/x', titleKey: 'k' }
+    eq(regCourse(evil), false, 'a dashboard course can never replace a built-in one'); ok(COURSES['basic-literacy'].lessons === LESSONS, 'built-in course untouched')
+    C.registerCmsContent([], []); ok(!COURSES.farming && !ALL_LESSONS.some((l) => l.key === 'x0123456789ab') && !anyLessonByKey('x0123456789ab') && !C.dynamicLessonInfo('x0123456789ab'), 'unregistering removes everything')
+    eq(Object.keys(COURSES).sort(), ['basic-digital', 'basic-literacy', 'basic-numeracy'], 'only the three built-in courses remain'); eq(ALL_LESSONS.length, LESSONS.length + num.LESSONS.length + DIGITAL.LESSONS.length, 'lesson list back to normal')
+    C.registerCmsContent([course], []); ok(!COURSES.farming, 'a course with no published lesson is not offered')
+    C.registerCmsContent([], [])
+  }
+
+  // ---------- E. checking a lesson (same rules in the app and in the database) ----------
+  {
+    const v = (f) => { const l = goodLesson(); f(l); return C.validateLessonContent(l) }
+    eq(C.validateLessonContent(goodLesson()), null, 'a complete lesson is valid'); eq(C.validateLessonContent(null), 'shape', 'nothing'); eq(C.validateLessonContent({}), 'title', 'empty')
+    eq(v((l) => { l.title.ha = '' }), 'title', 'Hausa title required'); eq(v((l) => { l.title.en = '' }), null, 'English may be empty'); eq(v((l) => { l.title.ha = 'x'.repeat(101) }), 'title', 'title 101'); eq(v((l) => { l.title.ha = 'x'.repeat(100) }), null, 'title 100')
+    eq(v((l) => { delete l.unit }), null, 'section is optional'); eq(v((l) => { l.unit = { ha: '' } }), 'unit', 'a section label, if given, needs Hausa')
+    eq(v((l) => { l.steps = [] }), 'steps', 'no steps'); eq(v((l) => { l.steps = Array.from({ length: 21 }, (_, i) => ({ id: sid(i + 10), type: 'teach', text: { ha: 'a' } })) }), 'steps', '21 steps'); eq(v((l) => { l.steps = Array.from({ length: 20 }, (_, i) => ({ id: sid(i + 10), type: 'teach', text: { ha: 'a' } })) }), null, '20 steps')
+    eq(v((l) => { l.steps[1].id = l.steps[0].id }), 'stepId', 'duplicate step id'); eq(v((l) => { l.steps[0].id = 'A' }), 'stepId', 'bad step id'); eq(v((l) => { l.steps[0].type = 'video' }), 'type', 'unknown step type')
+    eq(v((l) => { l.steps[0].text.ha = 'x'.repeat(601) }), 'teach', 'teaching text 601'); eq(v((l) => { l.steps[0].text.ha = 'x'.repeat(600) }), null, 'teaching text 600'); eq(v((l) => { l.steps[0].text.ha = 'a\u0001b' }), 'teach', 'control characters refused')
+    eq(v((l) => { l.steps[1].options = [{ ha: 'A' }] }), 'options', 'one option'); eq(v((l) => { l.steps[1].options = ['a', 'b', 'c', 'd', 'e', 'f'].map((x) => ({ ha: x })) }), 'options', 'six options'); eq(v((l) => { l.steps[1].options = ['a', 'b', 'c', 'd', 'e'].map((x) => ({ ha: x })); l.steps[1].right = 4 }), null, 'five options')
+    eq(v((l) => { l.steps[1].options[1].ha = 'A' }), 'optionsSame', 'two options with the same Hausa text'); eq(v((l) => { l.steps[1].right = 3 }), 'right', 'right answer out of range'); eq(v((l) => { l.steps[1].right = -1 }), 'right', 'negative'); eq(v((l) => { l.steps[1].right = '1' }), 'right', 'not a number')
+    eq(v((l) => { l.steps[1].prompt.ha = 'x'.repeat(301) }), 'prompt', 'question 301'); eq(v((l) => { l.steps[1].options[0].ha = 'x'.repeat(121) }), 'options', 'option 121'); eq(v((l) => { l.steps[1].why = { ha: 'x'.repeat(301) } }), 'why', 'reason 301'); eq(v((l) => { delete l.steps[1].why }), null, 'reason optional on a choice')
+    eq(v((l) => { l.steps[2].scam = 'yes' }), 'scam', 'scam flag must be true/false'); eq(v((l) => { l.steps[2].why = { ha: '' } }), 'scam', 'a scam card needs its reason'); eq(v((l) => { l.steps[2].text.ha = 'x'.repeat(401) }), 'scam', 'scam text 401')
+    eq(v((l) => { l.steps[3].target = 'zzz' }), 'tapTarget', 'tap target not on that screen'); eq(v((l) => { l.steps[3].screen = 'nowhere' }), 'tapTarget', 'unknown screen'); eq(v((l) => { l.steps[3].ask.ha = 'x'.repeat(201) }), 'tap', 'instruction 201'); eq(v((l) => { l.steps[3].target = 'signal'; l.steps[3].screen = 'home' }), null, 'any real button works')
+    eq(v((l) => { l.steps = Array.from({ length: 13 }, (_, i) => ({ id: sid(i + 10), type: 'scam', text: { ha: 'a' }, scam: true, why: { ha: 'b' } })) }), 'questions', '13 questions'); eq(v((l) => { l.steps = Array.from({ length: 12 }, (_, i) => ({ id: sid(i + 10), type: 'scam', text: { ha: 'a' }, scam: true, why: { ha: 'b' } })) }), null, '12 questions')
+    // the app and the database use the same numbers
+    const L = C.LIMITS
+    ok(c26.includes(`adult_cms_bi(p->'title', ${L.title})`) && c26.includes(`adult_cms_bi(p->'unit', ${L.unit})`) && c26.includes(`adult_cms_bi(s->'text', ${L.teach})`) && c26.includes(`adult_cms_bi(s->'prompt', ${L.prompt})`) && c26.includes(`adult_cms_bi(s->'options'->i, ${L.option})`) && c26.includes(`adult_cms_bi(s->'why', ${L.why})`) && c26.includes(`adult_cms_bi(s->'text', ${L.scam})`) && c26.includes(`adult_cms_bi(s->'ask', ${L.ask})`), 'text length limits equal in app and database')
+    ok(inc(`jsonb_array_length(p->'steps') not between 1 and ${L.steps}`) && inc(`not between ${L.optionsMin} and ${L.optionsMax}`) && inc(`return q <= ${L.questions}`) && inc(`octet_length(p::text) > ${L.bytes}`), 'step, option, question and size limits equal in app and database')
+    ok(c26.includes(`adult_cms_bi(p_title, ${L.courseTitle})`) && c26.includes(`adult_cms_bi(p_description, ${L.courseDesc})`) && inc(`not between 1 and ${L.text}`) && inc(`p_bytes not between 1 and ${L.audioBytes}`), 'course, text and audio limits equal in app and database')
+    ok(inc(`p_duration_ms not between 1 and ${L.audioMs}`) && /\^\[a-z0-9\]\{6,12\}\$/.test(c26), 'audio length and step-id rules equal')
+    ok(/\^\[a-z0-9_\]\{1,30\}\$/.test(c26) && c26.includes("typ = 'tap'"), 'screen and target name rules')
+    // built-in lessons: which of their texts can be corrected
+    const dk = C.lessonTextKeys(DIGITAL.LESSONS[0]); ok(dk.includes('dt_d_power') && dk.includes('dc_d_power') && dk.every((k) => k in strings.en), 'a built-in lesson lists its own texts (title, teaching page, questions) and only real ones')
+    ok(LESSONS.concat(num.LESSONS).every((l) => C.lessonTextKeys(l).every((k) => k in strings.en)), 'every built-in lesson lists only real text keys')
+  }
+
+  // ---------- F. the database (migration 026) ----------
+  {
+    for (const t2 of ['adult_texts', 'adult_text_drafts', 'adult_text_history', 'adult_audio', 'adult_cms_lessons', 'adult_cms_lesson_drafts', 'adult_cms_history']) ok(new RegExp(`alter table public\\.${t2}\\s+enable row level security`).test(c26), `RLS on ${t2}`)
+    ok(/grant select on public\.adult_texts, public\.adult_text_drafts[^;]*to authenticated/.test(c26) && !/grant (insert|update|delete|all)/i.test(c26) && !/anon/.test(c26.replace(/revoke[^;]*;/g, '')), 'browsers can only read the new tables; nothing for anonymous visitors')
+    const pol = (name) => (c26.match(new RegExp(`create policy "${name}"[\\s\\S]*?;`)) || [''])[0]
+    ok(/is_adult_staff\(array\['adult_admin'\]\)/.test(pol('adult_text_drafts: admin')) && /is_adult_staff\(array\['adult_admin'\]\)/.test(pol('adult_cms_lesson_drafts: admin')) && /is_adult_staff\(array\['adult_admin'\]\)/.test(pol('adult_cms_history: admin')) && /is_adult_staff\(array\['adult_admin'\]\)/.test(pol('adult_text_history: admin')), 'drafts and history are readable by the adult admin only (learners and facilitators cannot read unpublished work)')
+    ok(/is_adult_learner\(\) or public\.is_adult_staff\(\)/.test(pol('adult_texts: adult users read')) && /is_adult_learner\(\) or public\.is_adult_staff\(\)/.test(pol('adult_audio: adult users read')), 'published texts and recordings: adult users only')
+    ok(/status = 'published' and public\.is_adult_learner\(\) and public\.adult_has_course_access\(course_id\)/.test(pol('adult_cms_lessons: enrolled learner')), 'a learner reads only PUBLISHED lessons of a course they currently have access to (no reading paid lessons without paying)')
+    ok(/status <> 'draft' and public\.is_adult_staff\(\)/.test(pol('adult_cms_lessons: staff')) && /is_adult_staff\(array\['adult_admin'\]\)/.test(pol('adult_cms_lessons: admin')), 'staff never see drafts; the adult admin sees all')
+    ok(/e\.learner_id = auth\.uid\(\) and e\.course_id = p_course and \(e\.ends_at is null or e\.ends_at > now\(\)\)/.test(fnOf('adult_has_course_access')), 'access means an enrolment that has not ended')
+    ok(/'adult-audio', 'adult-audio', false, 3145728(?!\d)/.test(c26) && /allowed_mime_types = excluded\.allowed_mime_types/.test(c26) && /public = false/.test(c26), 'the audio bucket is private, 3 MB per file, limited types')
+    const mimes = [...(c26.match(/array\['audio\/webm'[^\]]*\]/) || [''])[0].matchAll(/'([^']+)'/g)].map((m) => m[1])
+    const api10 = rd('src/adult/adultApi.js'); const extMap = [...api10.match(/const AUDIO_EXT = \{([^}]*)\}/)[1].matchAll(/'([^']+)':/g)].map((m) => m[1])
+    eq([...mimes].sort(), [...extMap].sort(), 'the file types the app sends are exactly the ones the bucket and the table allow')
+    const recTypes = [...rd('src/adult/components/AudioEditor.jsx').match(/const REC_TYPES = \[([^\]]*)\]/)[1].matchAll(/'([^']+)'/g)].map((m) => m[1].split(';')[0]); ok(recTypes.every((x) => mimes.includes(x)), 'everything the recorder can produce is an allowed type')
+    for (const [name, rx] of [['adult-audio: adult users read', /for select to authenticated\s+using \(bucket_id = 'adult-audio' and \(public\.is_adult_learner\(\) or public\.is_adult_staff\(\)\)\)/], ['adult-audio: admin uploads', /for insert to authenticated\s+with check \(bucket_id = 'adult-audio' and public\.is_adult_staff\(array\['adult_admin'\]\)\)/], ['adult-audio: admin deletes', /for delete to authenticated\s+using \(bucket_id = 'adult-audio' and public\.is_adult_staff\(array\['adult_admin'\]\)\)/]]) ok(rx.test(pol(name)), `storage rule: ${name}`)
+    ok(/for update to authenticated\s+using \(bucket_id = 'adult-audio' and public\.is_adult_staff\(array\['adult_admin'\]\)\) with check \(bucket_id = 'adult-audio' and public\.is_adult_staff\(array\['adult_admin'\]\)\)/.test(pol('adult-audio: admin replaces')), 'storage rule: only the adult admin replaces recordings')
+    const admins = [...c26.matchAll(/create or replace function public\.(adult_admin_\w+)/g)].map((m) => m[1]); ok(admins.length >= 16, `${admins.length} admin functions`)
+    for (const f of admins) ok(/is_adult_staff\(array\['adult_admin'\]\)/.test(fnOf(f)) && /42501/.test(fnOf(f)), `${f}: adult admin only`)
+    const sv = fnOf('adult_admin_save_text_draft'); ok(/char_length\(coalesce\(p_value, ''\)\) not between 1 and 1000(?!\d)/.test(sv) && /\[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\]/.test(sv) && /p_lang not in \('ha','en'\)/.test(sv), 'text drafts: length, language and control characters checked')
+    const pb = fnOf('adult_admin_publish_text'); ok(/where key = p_key and lang = p_lang/.test(pb) && /if d\.key is null then raise exception 'no draft'/.test(pb) && /delete from public\.adult_text_drafts/.test(pb) && /adult_text_history/.test(pb), 'publishing a text needs a draft, clears it and keeps a history line')
+    ok(/delete from public\.adult_texts where key = p_key and lang = p_lang/.test(fnOf('adult_admin_revert_text')), 'reverting brings the built-in text back')
+    const sa = fnOf('adult_admin_set_audio')
+    ok(/p_bytes not between 1 and 3145728(?!\d)/.test(sa) && /p_text_hash !~ '\^\[0-9a-f\]\{8\}\$'/.test(sa) && /from storage\.objects o where o\.bucket_id = 'adult-audio' and o\.name = p_path/.test(sa) && /'\^audio\/' \|\| regexp_replace\(p_key/.test(sa) && /p_lang \|\| '-\[0-9\]\{10,14\}/.test(sa) && /return v_old/.test(sa), 'a recording is recorded only if its file really exists, in the right folder, with a valid size, type and fingerprint; the old file path is returned for deletion')
+    ok(/returning path into v_old/.test(fnOf('adult_admin_delete_audio')) && /update public\.adult_audio set text_hash/.test(fnOf('adult_admin_confirm_audio')), 'delete returns the file path; confirm updates the fingerprint')
+    const cc = fnOf('adult_admin_create_course'); ok(/p_slug !~ '\^\[a-z0-9\]\+\(-\[a-z0-9\]\+\)\*\$'/.test(cc) && /not between 3 and 30/.test(cc) && /p_slug like 'basic-%'/.test(cc) && /slug taken/.test(cc) && /'custom'/.test(cc) && /'draft', 'cms'/.test(cc) && /true, 0,/.test(cc), 'a new course: safe short name, never "basic-…", unique, kind custom, starts as a FREE DRAFT')
+    ok(/origin = 'cms'/.test(fnOf('adult_admin_update_course')) && /origin = 'cms'/.test(fnOf('adult_admin_create_lesson')), 'only dashboard courses can be edited here, never built-in ones')
+    const cl = fnOf('adult_admin_create_lesson'); ok(/'x' \|\| substr\(replace\(gen_random_uuid\(\)::text, '-', ''\), 1, 12\)/.test(cl) && />= 100/.test(cl) && /key\s+text not null unique check \(key ~ '\^x\[0-9a-f\]\{12\}\$'\)/.test(c26), 'lesson keys are random, unique and never change (progress is stored by key); at most 100 lessons per course')
+    ok(/octet_length\(p_content::text\) > 60000(?!\d)/.test(fnOf('adult_admin_save_lesson_draft')) && !/adult_cms_valid/.test(fnOf('adult_admin_save_lesson_draft')), 'a draft may be unfinished (only size and shape checked)')
+    const pl = fnOf('adult_admin_publish_lesson'); ok(/not public\.adult_cms_valid\(d\.content\)/.test(pl) && /for update/.test(pl) && /limit 10/.test(pl) && /delete from public\.adult_cms_lesson_drafts/.test(pl) && /published_at = coalesce\(published_at, now\(\)\)/.test(pl), 'publishing checks the whole lesson again, keeps the last 10 versions, clears the draft')
+    ok(/p_status = 'published' and \(l\.published_at is null or not public\.adult_cms_valid\(l\.content\)\)/.test(fnOf('adult_admin_set_lesson_status')), 'a lesson can be put back only if it was published before and is valid')
+    ok(/l\.published_at is not null or exists \(select 1 from public\.adult_lesson_progress lp where lp\.lesson_key = l\.key\)/.test(fnOf('adult_admin_delete_lesson')), 'a lesson that was published or that anyone started can never be deleted')
+    const calc = fnOf('adult_calc_standard'); ok(/c\.origin = 'cms'/.test(calc) && /l\.status = 'published'/.test(calc) && /v_req > 0 and v_done >= v_req/.test(calc) && />= 0\.6/.test(calc) && !/trace|write_rating|best_calc/.test(calc), 'a certificate for a dashboard course needs ALL its published lessons and 60% of the automatically marked questions; handwriting plays no part')
+    ok(/c\.origin = 'code' and c\.required_lessons is null/.test(fnOf('adult_claim_certificate')) && /not \(s->>'eligible'\)::boolean then raise exception 'not yet complete'/.test(fnOf('adult_claim_certificate')), 'claiming a certificate still checks eligibility in the database')
+    ok(/revoke all on function public\.adult_cms_bi\(jsonb,integer\) from public, anon, authenticated/.test(c26) && /revoke all on function public\.adult_cms_valid\(jsonb\) from public, anon, authenticated/.test(c26) && /revoke all on function public\.adult_calc_standard\(uuid,uuid\) from public, anon, authenticated/.test(c26), 'the helpers and the certificate calculation stay internal')
+    ok(/kind in \('literacy','numeracy','digital','english','custom'\)/.test(c26) && /origin text not null default 'code' check \(origin in \('code','cms'\)\)/.test(c26), 'course kind and origin')
+    ok(!/service_role|secret/i.test(c26), 'no secret in 026')
+  }
+
+  // ---------- G. the screens and the app wiring ----------
+  {
+    const api10 = rd('src/adult/adultApi.js')
+    const auth = rd('src/adult/AdultAuth.jsx'), audio = rd('src/adult/components/AdultAudio.jsx'), les = rd('src/adult/pages/Lessons.jsx'), tc = rd('src/adult/pages/TeachContent.jsx'), ae = rd('src/adult/components/AudioEditor.jsx'), teach = rd('src/adult/pages/Teach.jsx'), lrn = rd('src/adult/pages/Learner.jsx')
+    ok(/template\(lang, k\)/.test(auth) && /\[lang, cv\]/.test(auth) && /loadContent\('learner'\)/.test(auth) && !/strings\[lang\]/.test(auth), 'every text goes through the dashboard-aware lookup, and learners load the admin\'s content after sign-in')
+    ok(/loadContent\('staff'\)/.test(teach) && /tab === 'content' && role === 'adult_admin' && <ContentTab \/>/.test(teach) && /\['content', 'tContent'\]/.test(teach), 'the Content screen is for the adult admin only; staff also load content (for names in reports)')
+    ok(audio.indexOf('if (clip)') > -1 && audio.indexOf('if (clip)') < audio.indexOf('} else if (file)') && /clipFor\(l, audioKey\)/.test(audio) && /signedAudioUrl\(getAudioClient\(\), path\)/.test(audio) && /50 \* 60 \* 1000/.test(audio), 'playing: the admin\'s recording first, then a file, then the phone\'s voice; the private link is fetched only on Listen and kept less than its 1-hour life')
+    ok(/if \(!url\) \{ if \(canSpeak\)/.test(audio), 'if the recording cannot be fetched the phone voice takes over')
+    ok(/audioKey=\{step\.conceptKey\}/.test(les) && /audioKey=\{step\.cardKey\}/.test(les) && /audioKey=\{step\.promptKey\}/.test(les) && /audioKey=\{step\.askKey\}/.test(rd('src/adult/components/DigitalSteps.jsx')), 'teaching pages, scam cards, questions and tap instructions all have a Listen button that can use a recording')
+    ok(/contentReady \? <Navigate/.test(les) && /courseNoLessons/.test(les) && /const title = def \? t\(def\.titleKey\)/.test(les) && /CourseBySlug/.test(les) && /path="c\/:slug" element=\{<CourseBySlug \/>\}/.test(rd('src/adult/AdultApp.jsx')), 'a dashboard course opens at /adult/c/<name> and waits for its content instead of crashing or bouncing the learner away')
+    ok(/c\.origin === 'cms' \? '\/adult\/c\/' \+ c\.slug/.test(lrn) && !/\{COURSES\[c\.slug\] \? <Link/.test(lrn), 'the Courses page offers dashboard courses')
+    for (const f of ['src/adult/pages/Lessons.jsx', 'src/adult/pages/Learner.jsx', 'src/adult/pages/Progress.jsx', 'src/adult/pages/Write.jsx', 'src/adult/pages/Pay.jsx']) if (existsSync(f)) ok(!/AudioEditor|TeachContent|saveTextDraft|uploadAudio|createCourse/.test(rd(f)), `${f.replace('src/adult/pages/', '')}: no editing tools in the learner screens`)
+    ok(!/supabase/i.test(tc.replace(/staffApi/g, '')) && !/dangerouslySetInnerHTML|innerHTML|eval\(/.test(tc + ae + rd('src/adult/content.js')), 'the editor goes through the API layer; admin text is only ever shown as plain text (never as HTML)')
+    ok(/MediaRecorder/.test(ae) && /getUserMedia\(\{ audio/.test(ae) && /const MAX_SECONDS = 90(?!\d)/.test(ae) && /n >= MAX_SECONDS/.test(ae) && /audioBitsPerSecond: 32000/.test(ae) && /setState\('denied'\)/.test(ae) && /t\('audNoMic'\)/.test(ae), 'recording: microphone only on request, 90-second limit, small files, clear message if refused or unsupported')
+    ok(/stream\.current\.getTracks\(\)\.forEach\(\(t\) => t\.stop\(\)\)/.test(ae) && /URL\.revokeObjectURL/.test(ae), 'the microphone is released and temporary files are freed')
+    ok(/f\.size > LIMITS\.audioBytes/.test(ae) && /FILE_TYPES\[f\.type\]/.test(ae) && /accept="audio\/\*"/.test(ae), 'uploads: type and size checked before sending')
+    ok(/path = `audio\/\$\{key\}\/\$\{lang\}-\$\{Date\.now\(\)\}\.\$\{ext\}`/.test(api10) && /createSignedUrl\(path, 3600\)/.test(api10) && /upsert: false/.test(api10) && /remove\(\[path\]\)/.test(api10) && /remove\(\[r\.data\]\)/.test(api10), 'upload: file first, then the record; a failed record removes the file; a replaced recording\'s old file is removed')
+    ok(/getUserMedia/.test(ae) && /microphone=\(self\)/.test(rd('vercel.json')) && rd('public/_headers').split('microphone=(self)').length - 1 === 2 && !/microphone=\(\*\)|microphone=\(\)/.test(rd('vercel.json') + rd('public/_headers')) && /camera=\(\)/.test(rd('vercel.json')), 'the page may use the microphone (this site only, for the recorder); camera, location and payment stay blocked')
+    ok(/media-src 'self' blob: https:\/\/\*\.supabase\.co/.test(rd('vercel.json')), 'the security policy still allows playing recordings')
+    ok(/loadContent\('staff'\)/.test(ae) && /await refresh\(\)/.test(ae), 'after saving a recording the admin\'s screen refreshes')
+    for (const k of ['ctTitle', 'ctPublish', 'audRecord', 'audMicDenied', 'ctErrPlaceholders']) ok(strings.ha[k] && strings.en[k] && strings.ha[k] !== strings.en[k], `text exists in both languages: ${k}`)
+    ok(/'draft'|ctIntro/.test(tc) && /Every change is a draft until you press Publish/.test(strings.en.ctIntro), 'the screen says changes are drafts until published')
+  }
 }
 
 console.log(fail ? `\n${fail} of ${n} checks FAILED` : `All ${n} adult checks passed`)

@@ -26,13 +26,33 @@ async function rpc(client, fn, args) {
     if (!error) return { data, error: null }
     const known = [[/already marked/i, 'MARKED'], [/assignment closed/i, 'CLOSED_WORK'], [/too many attempts/i, 'ATTEMPTS'], [/photo not uploaded/i, 'NOUPLOAD'], [/class is closed/i, 'CLASS_CLOSED'], [/bad score/i, 'BADSCORE'], [/too many learners/i, 'TOOMANY'], [/bad date/i, 'BADDATE'], [/bad schedule/i, 'BADSCHEDULE'], [/bad marks|bad note/i, 'BADMARKS'],
       [/bad reference/i, 'BADREF'], [/already waiting/i, 'WAITING'], [/too many waiting/i, 'TOOMANYWAIT'], [/already has access/i, 'HASACCESS'], [/too many code tries/i, 'CODETRIES'], [/bad codes/i, 'BADCODES'], [/bad code/i, 'BADCODE'],
-      [/course not available/i, 'NOCOURSE'], [/not yet complete/i, 'NOTYET'], [/certificate withdrawn/i, 'WITHDRAWN'], [/payment already decided/i, 'DECIDED'], [/bad price/i, 'BADPRICE'], [/bad course/i, 'BADCOURSE'], [/bad payment info/i, 'BADINFO'], [/not enrolled/i, 'denied']]
+      [/course not available/i, 'NOCOURSE'], [/not yet complete/i, 'NOTYET'], [/certificate withdrawn/i, 'WITHDRAWN'], [/payment already decided/i, 'DECIDED'], [/bad price/i, 'BADPRICE'], [/bad course/i, 'BADCOURSE'], [/bad payment info/i, 'BADINFO'], [/not enrolled/i, 'denied'],
+      [/bad text/i, 'BADTEXT'], [/no draft/i, 'NODRAFT'], [/bad audio/i, 'BADAUDIO'], [/bad slug/i, 'BADSLUG'], [/slug taken/i, 'SLUGTAKEN'], [/bad lesson/i, 'BADLESSON'], [/lesson not valid/i, 'LESSONINVALID'], [/lesson in use/i, 'LESSONINUSE'], [/lesson not found/i, 'NOLESSON']]
     const hit = known.find(([re]) => re.test(error.message || ''))
     return fail(hit ? hit[1] : /denied|authorized|42501/i.test(error.message) ? 'denied' : 'generic')
   } catch (e) { return fail(net(e)) }
 }
 async function select(q) {
   try { const { data, error } = await q; return error ? fail('generic') : { data, error: null } } catch (e) { return fail(net(e)) }
+}
+
+// ---- content written or corrected in the dashboard (Phase 10): the same read for learners and staff ----
+async function readContent(client) {
+  if (!client) return { texts: [], audio: [], courses: [], lessons: [], error: 'config' }
+  const [t, a, c, l] = await Promise.all([
+    select(client.from('adult_texts').select('key,lang,value,reviewed')),
+    select(client.from('adult_audio').select('key,lang,path,mime,bytes,duration_ms,text_hash')),
+    select(client.from('adult_courses').select('id,slug,kind,title,description,status,origin,skill_area').eq('origin', 'cms')),
+    select(client.from('adult_cms_lessons').select('id,course_id,key,position,unit,title,content,status').order('position')),
+  ])
+  return { texts: t.data || [], audio: a.data || [], courses: c.data || [], lessons: l.data || [], error: t.error || a.error || c.error || l.error }
+}
+const AUDIO_EXT = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac', 'audio/wav': 'wav', 'audio/x-m4a': 'm4a' }
+export const audioExtension = (mime) => AUDIO_EXT[mime] || null
+// a short-lived link to a private recording (the browser plays it; nothing is downloaded until someone presses Listen)
+export async function signedAudioUrl(client, path) {
+  if (!client) return null
+  try { const { data, error } = await client.storage.from('adult-audio').createSignedUrl(path, 3600); return error ? null : data.signedUrl } catch { return null }
 }
 
 // ---- learner ----
@@ -49,7 +69,7 @@ export const learnerApi = {
   register: (full_name, phone, pin) => call(supabaseAdult, 'self_register', { full_name, phone, pin }),
   profile: (uid) => select(supabaseAdult.from('adult_profiles').select('*').eq('id', uid).maybeSingle()),
   updateSettings: (uid, patch) => select(supabaseAdult.from('adult_profiles').update(patch).eq('id', uid)),
-  courses: () => select(supabaseAdult.from('adult_courses').select('id,slug,kind,title,description,status,is_free,price_ngn,access_days').order('position')),
+  courses: () => select(supabaseAdult.from('adult_courses').select('id,slug,kind,title,description,status,is_free,price_ngn,access_days,origin').order('position')),
   enrollments: () => select(supabaseAdult.from('adult_enrollments').select('course_id,created_at,ends_at,source')),
   latestAssessment: () => select(supabaseAdult.from('adult_assessments').select('id,mode,scores,recommended,needs_confirmation,created_at').order('created_at', { ascending: false }).limit(1)),
   progress: () => select(supabaseAdult.from('adult_lesson_progress').select('lesson_key,course_id,status,attempts,best_trace,last_trace,best_calc,write_rating,last_results,updated_at')),
@@ -89,6 +109,7 @@ export const learnerApi = {
   },
   deleteAccount: () => rpc(supabaseAdult, 'adult_delete_my_account', {}),
   myReport: () => rpc(supabaseAdult, 'adult_my_report', {}),
+  content: () => readContent(supabaseAdult),
   // Phase 8: paying for a course, certificates
   paymentInfo: () => select(supabaseAdult.from('adult_payment_info').select('instructions,account_details,whatsapp').maybeSingle()),
   myPayments: () => select(supabaseAdult.from('adult_payments').select('id,course_id,status,method,reference,amount_ngn,reject_reason,created_at,decided_at').order('created_at', { ascending: false }).limit(50)),
@@ -122,6 +143,45 @@ export const staffApi = {
   submission: (id) => rpc(supabaseStaff, 'adult_staff_submission', { p_id: id }),
   review: (i) => rpc(supabaseStaff, 'adult_review_submission', { p_submission: i.id, p_score: i.score, p_comment: i.comment || null, p_corrections: i.corrections || [], p_redo: Boolean(i.redo) }),
   signedUrl: async (path) => { try { const { data, error } = await supabaseStaff.storage.from('adult-submissions').createSignedUrl(path, 300); return error ? fail('generic') : { data: data.signedUrl, error: null } } catch (e) { return fail(net(e)) } },
+  // Phase 10: content (adult admin) — texts, recordings, courses and lessons written in the dashboard
+  content: () => readContent(supabaseStaff),
+  contentDrafts: async () => {
+    const [t, l, h] = await Promise.all([select(supabaseStaff.from('adult_text_drafts').select('key,lang,value,updated_at')), select(supabaseStaff.from('adult_cms_lesson_drafts').select('lesson_id,content,updated_at')), select(supabaseStaff.from('adult_cms_history').select('id,lesson_id,content,at').order('at', { ascending: false }).limit(200))])
+    return { textDrafts: t.data || [], lessonDrafts: l.data || [], history: h.data || [], error: t.error || l.error || h.error }
+  },
+  saveTextDraft: (key, lang, value) => rpc(supabaseStaff, 'adult_admin_save_text_draft', { p_key: key, p_lang: lang, p_value: value }),
+  discardTextDraft: (key, lang) => rpc(supabaseStaff, 'adult_admin_discard_text_draft', { p_key: key, p_lang: lang }),
+  publishText: (key, lang, reviewed) => rpc(supabaseStaff, 'adult_admin_publish_text', { p_key: key, p_lang: lang, p_reviewed: Boolean(reviewed) }),
+  markReviewed: (key, lang, value, reviewed) => rpc(supabaseStaff, 'adult_admin_mark_reviewed', { p_key: key, p_lang: lang, p_value: value, p_reviewed: Boolean(reviewed) }),
+  revertText: (key, lang) => rpc(supabaseStaff, 'adult_admin_revert_text', { p_key: key, p_lang: lang }),
+  // a recording: the file goes to private storage first (only the adult admin may), then the database records it
+  uploadAudio: async ({ key, lang, blob, mime, durationMs, textHash }) => {
+    const ext = AUDIO_EXT[mime]
+    if (!supabaseStaff || !ext || blob.size < 1 || blob.size > 3145728) return fail('BADAUDIO')
+    const path = `audio/${key}/${lang}-${Date.now()}.${ext}`
+    try {
+      const up = await supabaseStaff.storage.from('adult-audio').upload(path, blob, { contentType: mime, cacheControl: '3600', upsert: false })
+      if (up.error) return fail('BADAUDIO')
+    } catch (e) { return fail(net(e)) }
+    const r = await rpc(supabaseStaff, 'adult_admin_set_audio', { p_key: key, p_lang: lang, p_path: path, p_mime: mime, p_bytes: blob.size, p_duration_ms: durationMs || null, p_text_hash: textHash })
+    if (r.error) { try { await supabaseStaff.storage.from('adult-audio').remove([path]) } catch { /* nothing more to do */ } return r }
+    if (r.data) { try { await supabaseStaff.storage.from('adult-audio').remove([r.data]) } catch { /* the old file stays; harmless */ } }
+    return { data: { path }, error: null }
+  },
+  confirmAudio: (key, lang, textHash) => rpc(supabaseStaff, 'adult_admin_confirm_audio', { p_key: key, p_lang: lang, p_text_hash: textHash }),
+  deleteAudio: async (key, lang) => {
+    const r = await rpc(supabaseStaff, 'adult_admin_delete_audio', { p_key: key, p_lang: lang })
+    if (!r.error && r.data) { try { await supabaseStaff.storage.from('adult-audio').remove([r.data]) } catch { /* the file stays; harmless */ } }
+    return r
+  },
+  createCourse: (i) => rpc(supabaseStaff, 'adult_admin_create_course', { p_slug: i.slug, p_title: i.title, p_description: i.description, p_skill_area: i.area }),
+  updateCourse: (i) => rpc(supabaseStaff, 'adult_admin_update_course', { p_course: i.course, p_title: i.title, p_description: i.description, p_skill_area: i.area }),
+  createLesson: (course, title) => rpc(supabaseStaff, 'adult_admin_create_lesson', { p_course: course, p_title: title }),
+  saveLessonDraft: (lesson, content) => rpc(supabaseStaff, 'adult_admin_save_lesson_draft', { p_lesson: lesson, p_content: content }),
+  publishLesson: (lesson) => rpc(supabaseStaff, 'adult_admin_publish_lesson', { p_lesson: lesson }),
+  setLessonStatus: (lesson, status) => rpc(supabaseStaff, 'adult_admin_set_lesson_status', { p_lesson: lesson, p_status: status }),
+  moveLesson: (lesson, dir) => rpc(supabaseStaff, 'adult_admin_move_lesson', { p_lesson: lesson, p_dir: dir }),
+  deleteLesson: (lesson) => rpc(supabaseStaff, 'adult_admin_delete_lesson', { p_lesson: lesson }),
   // Phase 8: course pricing, payments, codes, certificates (adult admin)
   setCourse: (i) => rpc(supabaseStaff, 'adult_admin_set_course', { p_course: i.course, p_status: i.status, p_free: i.free, p_price: i.free ? 0 : i.price, p_days: i.free ? null : i.days }),
   paymentInfo: () => select(supabaseStaff.from('adult_payment_info').select('instructions,account_details,whatsapp').maybeSingle()),

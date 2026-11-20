@@ -10,7 +10,7 @@ import { AREAS, DAYS, T, attendanceStats, bySupport, classSummary, scheduleParts
 
 export const E = (t, code) => t({ network: 'errNetwork', denied: 'errDenied', CLASS_CLOSED: 'errClassClosed', BADDATE: 'errBadDate', BADSCHEDULE: 'errBadSchedule', BADMARKS: 'errBadMarks', TOOMANY: 'errTooMany', config: 'errConfig' }[code] || 'errGeneric')
 const LEVEL_KEY = { none: 'lvNone', early: 'lvEarly', building: 'lvBuilding', developing: 'lvDeveloping', secure: 'lvSecure' }
-const AREA_KEY = { read: 'skRead', write: 'skWrite', count: 'skCount', apply: 'skApply', digital: 'skDigital', safety: 'skSafety' }
+const AREA_KEY = { read: 'skRead', write: 'skWrite', count: 'skCount', apply: 'skApply', digital: 'skDigital', safety: 'skSafety', other: 'skOther' }
 export const STATUS_KEY = { support: 'statusSupport', watch: 'statusWatch', ok: 'statusOk', nodata: 'statusNodata' }
 export const FLAG_KEY = { attLow: 'fAttLow', absentStreak: 'fAbsentStreak', inactive: 'fInactive', neverStarted: 'fNeverStarted', practice: 'fPractice', mathsLow: 'fMathsLow', choiceLow: 'fChoiceLow', workLow: 'fWorkLow', workOverdue: 'fWorkOverdue', safetyLow: 'fSafetyLow' }
 const DAY_KEY = { 1: 'day1', 2: 'day2', 3: 'day3', 4: 'day4', 5: 'day5', 6: 'day6', 7: 'day7' }
