@@ -1,0 +1,2 @@
+.pwa-update{position:fixed;left:12px;right:12px;bottom:12px;z-index:200;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;background:#14284b;color:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 8px 24px #0006;font-family:system-ui,sans-serif;max-width:520px;margin:0 auto}
+.pwa-update button{min-height:40px;padding:6px 16px;border-radius:10px;border:0;background:#e67e00;color:#fff;font:inherit;font-weight:700;cursor:pointer}.pwa-update .later{background:transparent;border:1px solid #ffffff66}

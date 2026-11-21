@@ -20,11 +20,11 @@ const LITERACY = 'basic-literacy'
 
 // Loads one course, whether the learner joined it, their progress, and the starting point advised by the assessment.
 export function useCourse(slug) {
-  const { contentReady } = useAdult()                                  // dashboard courses are registered once the admin's content has loaded
+  const { contentReady, profile } = useAdult()                         // dashboard courses are registered once the admin's content has loaded
   const [d, setD] = useState({ loading: true, error: false, course: null, enrolled: false, expired: false, endsAt: null, rows: [], start: null })
   const kind = COURSES[slug]?.kind
   const load = useCallback(async () => {
-    await flush((i) => learnerApi.recordLesson(i))                     // send anything that could not be saved earlier
+    await flush((i) => learnerApi.recordLesson(i), profile?.id)                   // send anything that could not be saved earlier
     const [c, e, p, a] = await Promise.all([learnerApi.courses(), learnerApi.enrollments(), learnerApi.progress(), learnerApi.latestAssessment()])
     const course = (c.data || []).find((x) => x.slug === slug) || null
     const keys = new Set((COURSES[slug] ? COURSES[slug].lessons : []).map((l) => l.key))
@@ -34,7 +34,7 @@ export function useCourse(slug) {
       loading: false, error: Boolean(c.error || e.error || p.error), course, enrolled: active, expired: Boolean(mine && !active), endsAt: mine ? mine.ends_at : null,
       rows: (p.data || []).filter((r) => keys.has(r.lesson_key)), start: ((a.data || [])[0]?.recommended?.[kind]?.start) || null,
     })
-  }, [slug, kind, contentReady])                                         // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slug, kind, contentReady, profile?.id])                                         // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
   return { ...d, reload: load }
 }
@@ -284,7 +284,7 @@ export function LessonPlayer() {
     learnerApi.recordLesson(payload).then(({ error }) => {
       if (!error) setSaveState('saved')
       else if (error === 'denied') setSaveState('denied')
-      else { enqueue(payload); setSaveState('queued') }
+      else { enqueue(payload, profile?.id); setSaveState('queued') }
     })
   }, [step, d.course, d.loading])                         // eslint-disable-line react-hooks/exhaustive-deps
 

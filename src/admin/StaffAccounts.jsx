@@ -125,7 +125,7 @@ export default function StaffAccounts() {
       <h2>Staff accounts</h2>
       <p className="adm-note">Give a school or company its own page: create the organization first, then its staff accounts here.</p>
       {orgs.length === 0
-        ? <div className="adm-card"><p>No school or company yet.</p><Link className="adm-btn" to="/admin/organizations">Create the first organization</Link></div>
+        ? <div className="adm-card"><p>No school or company yet.</p><Link className="adm-btn" to="/dashboard/organizations">Create the first organization</Link></div>
         : <StaffForm orgs={orgs} onDone={() => setK(k + 1)} />}
       <h3>All staff accounts</h3>
       <StaffList key={k} />

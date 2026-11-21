@@ -48,8 +48,8 @@ export default function MissionList() {
           <>
             <p className="adm-note">Hausa: {m.title.ha || '–'} · Updated {when(m.updated_at)} by {who(m.updated_by)}</p>
             <div className="adm-actions">
-              <Link className="adm-btn" to={`/admin/missions/${m.id}`}>Edit</Link>
-              <Link className="adm-btn ghost" to={`/admin/missions/${m.id}?tab=preview`}>Preview</Link>
+              <Link className="adm-btn" to={`/dashboard/missions/${m.id}`}>Edit</Link>
+              <Link className="adm-btn ghost" to={`/dashboard/missions/${m.id}?tab=preview`}>Preview</Link>
               {m.status === 'archived'
                 ? <button className="adm-btn ghost" onClick={() => act(() => setStatus(m.id, 'draft'))}>Restore as Draft</button>
                 : m.status !== 'published' && <button className="adm-btn ghost" onClick={() => act(() => setStatus(m.id, 'archived'))}>Archive</button>}
@@ -70,7 +70,7 @@ export default function MissionList() {
           </div>
           <div className="adm-actions">
             <button className="adm-btn" disabled={!creating.slug || !creating.en.trim() || !creating.ha.trim()}
-              onClick={() => act(async () => { const id = await createMission(creating); nav(`/admin/missions/${id}`) })}>Create</button>
+              onClick={() => act(async () => { const id = await createMission(creating); nav(`/dashboard/missions/${id}`) })}>Create</button>
             <button className="adm-btn ghost" onClick={() => setCreating(null)}>Cancel</button>
           </div>
         </div></div>
@@ -81,7 +81,7 @@ export default function MissionList() {
           <p>A copy is made as a <b>Draft</b> that you can change freely. Pictures and audio are shared with the original.</p>
           <Field label="Web address name for the copy"><input value={dupOf.slug} onChange={(e) => setDupOf({ ...dupOf, slug: slugify(e.target.value) })} /></Field>
           <div className="adm-actions">
-            <button className="adm-btn" disabled={!dupOf.slug} onClick={() => act(async () => { const id = await duplicateMission(dupOf.m.id, dupOf.slug); setDupOf(null); nav(`/admin/missions/${id}`) })}>Duplicate</button>
+            <button className="adm-btn" disabled={!dupOf.slug} onClick={() => act(async () => { const id = await duplicateMission(dupOf.m.id, dupOf.slug); setDupOf(null); nav(`/dashboard/missions/${id}`) })}>Duplicate</button>
             <button className="adm-btn ghost" onClick={() => setDupOf(null)}>Cancel</button>
           </div>
         </div></div>

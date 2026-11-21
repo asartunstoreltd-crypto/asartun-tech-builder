@@ -35,8 +35,8 @@ export default function AdminDashboard() {
           <h3>Schools &amp; companies</h3>
           <p className="adm-note">Give a school or company its own page: create the organization, then create its staff accounts.</p>
           <div className="adm-actions">
-            <Link className="adm-btn" to="/admin/staff">+ Create staff account</Link>
-            <Link className="adm-btn ghost" to="/admin/organizations">Schools &amp; companies</Link>
+            <Link className="adm-btn" to="/dashboard/school-staff">+ Create staff account</Link>
+            <Link className="adm-btn ghost" to="/dashboard/organizations">Schools &amp; companies</Link>
           </div>
         </div>
       )}

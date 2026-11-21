@@ -1,0 +1,23 @@
+{
+  "id": "/",
+  "name": "ASARTUN TECH BUILDER",
+  "short_name": "ASARTUN",
+  "description": "Hands-on learning for children and adults: lessons, classes and staff tools by ASARTUN STORE LIMITED.",
+  "lang": "en",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f0f7ff",
+  "theme_color": "#0b5ed7",
+  "categories": ["education"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Adult Learning", "short_name": "Adults", "url": "/adult", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Staff Dashboard", "short_name": "Dashboard", "url": "/dashboard", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}

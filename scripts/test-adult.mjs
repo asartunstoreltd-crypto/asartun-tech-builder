@@ -906,8 +906,17 @@ import { createHash } from 'node:crypto'
 
   // ---------- D. the children's app, /admin and /org are untouched ----------
   const base = JSON.parse(rd('scripts/baseline-v0_9_7.json')).files
-  for (const [f, h] of Object.entries(base)) ok(existsSync(f) && createHash('sha256').update(readFileSync(f)).digest('hex') === h, `unchanged since v0_9_7: ${f}`)
-  const allowedNew = [/^src\/adult\//, /^supabase\/migrations\/0(1[789]|2[0-9])_adult/, /^supabase\/functions\/adult-/, /^supabase\/schedule\//, /^docs\/ADULT_/, /^scripts\/test-adult\.mjs$/, /^scripts\/baseline-/, /^vercel\.json$/, /^public\/_headers$/]
+  // v0_11 unified dashboard + PWA (approved change): these baseline files were edited ON PURPOSE. Each is verified by a narrower rule instead of "byte-identical".
+  const sha = (b) => createHash('sha256').update(b).digest('hex')
+  const LINKS = [['/dashboard/school-staff', '/admin/staff'], ['/dashboard/organizations', '/admin/organizations'], ['/dashboard/missions', '/admin/missions']]
+  const INTENTIONAL = new Set(['index.html', 'package.json', 'src/main.jsx', 'src/admin/AdminDashboard.jsx', 'src/admin/MissionEditor.jsx', 'src/admin/MissionList.jsx', 'src/admin/Organizations.jsx', 'src/admin/StaffAccounts.jsx'])
+  for (const [f, h] of Object.entries(base)) {
+    if (!INTENTIONAL.has(f)) { ok(existsSync(f) && sha(readFileSync(f)) === h, `unchanged since v0_9_7: ${f}`); continue }
+    if (f.startsWith('src/admin/')) { let t = rd(f); for (const [a, b] of LINKS) t = t.split(a).join(b); ok(sha(t) === h, `only its /admin links changed to /dashboard (reversing them gives the v0_9_7 file): ${f}`) }
+  }
+  const pk0 = JSON.parse(rd('package.json')); ok(Object.keys(pk0.dependencies || {}).length > 0 && Object.keys(pk0.scripts).includes('test:dashboard') && Object.keys(pk0.scripts).includes('test:pwa'), 'package.json: test scripts added, dependencies untouched by this change')
+  ok(/<div id="root">/.test(rd('index.html')) && /manifest\.webmanifest/.test(rd('index.html')), 'index.html: root element kept, PWA tags added')
+  const allowedNew = [/^src\/adult\//, /^supabase\/migrations\/0(1[789]|2[0-9])_adult/, /^supabase\/functions\/adult-/, /^supabase\/schedule\//, /^docs\/ADULT_/, /^scripts\/test-adult\.mjs$/, /^scripts\/baseline-/, /^vercel\.json$/, /^public\/_headers$/, /^src\/dashboard\//, /^src\/pwa\//, /^public\/(icons\/|sw\.js$|offline\.html$|manifest\.webmanifest$)/, /^supabase\/migrations\/027_staff_management\.sql$/, /^supabase\/tests\/027_/, /^scripts\/(test-dashboard|test-pwa)\.mjs$/, /^scripts\/generate-pwa-icons\.py$/, /^docs\/STAFF_DASHBOARD\.md$/]
   const stray = []
   ;(function walk(d) { for (const e of readdirSync(d)) { if (e === 'node_modules' || e === '.git') continue; const p = d === '.' ? e : d + '/' + e; statSync(p).isDirectory() ? walk(p) : (!(p in base) && !allowedNew.some((r) => r.test(p)) && stray.push(p)) } })('.')
   eq(stray, [], 'no file outside the adult module was added or changed')
@@ -916,7 +925,7 @@ import { createHash } from 'node:crypto'
 
   // ---------- E. browser security headers (only for /adult) ----------
   const vj = JSON.parse(rd('vercel.json')); const hs = vj.headers || []
-  ok(hs.length >= 2 && hs.every((h) => /^\/adult(\/|$)/.test(h.source)), 'security headers apply to /adult only; the children\'s routes get none')
+  ok(hs.length >= 2 && hs.every((h) => /^\/(adult|dashboard)(\/|$)|^\/sw\.js$|^\/manifest\.webmanifest$/.test(h.source)), 'security headers apply to /adult and /dashboard only (plus the service-worker and manifest caching rules); the children\'s routes get none')
   ok(vj.rewrites.some((r) => r.source === '/(.*)' && r.destination === '/index.html'), 'the single-page rewrite is intact')
   const hv = (k) => (hs[0].headers.find((h) => h.key === k) || {}).value || ''
   const csp = hv('Content-Security-Policy')
@@ -924,7 +933,7 @@ import { createHash } from 'node:crypto'
   ok(!/unsafe-eval|script-src[^;]*unsafe-inline|script-src[^;]*\*|default-src[^;]*\*/.test(csp), 'CSP allows no eval, no inline scripts, no wildcard scripts')
   ok(/connect-src 'self' https:\/\/\*\.supabase\.co/.test(csp) && /img-src[^;]*blob:/.test(csp), 'CSP still allows Supabase and photo previews')
   ok(hv('X-Content-Type-Options') === 'nosniff' && hv('X-Frame-Options') === 'DENY' && /strict-origin/.test(hv('Referrer-Policy')) && /camera=\(\)/.test(hv('Permissions-Policy')), 'nosniff, no framing, referrer and permissions policies')
-  const hf = rd('public/_headers'); for (const h of hs[0].headers) eq(hf.split(h.key + ': ' + h.value).length - 1, hs.length, `Netlify headers file carries ${h.key} for every /adult path`)
+  const hf = rd('public/_headers'); for (const h of hs[0].headers) eq(hf.split(h.key + ': ' + h.value).length - 1, hs.filter((x) => x.headers.some((y) => y.key === 'Content-Security-Policy')).length, `Netlify headers file carries ${h.key} for every /adult and /dashboard path`)
   ok(!/<script(?![^>]*\bsrc=)[^>]*>[^<]/i.test(rd('index.html')) && !/https?:\/\//.test(rd('index.html')), 'index.html has no inline script and no outside resource, so the strict CSP cannot break it')
   ok(!/user-scalable\s*=\s*no|maximum-scale/i.test(rd('index.html')), 'pinch-zoom is not disabled')
 
@@ -1160,7 +1169,7 @@ import { registerCourse as regCourse } from '../src/adult/courses.js'
     ok(/stream\.current\.getTracks\(\)\.forEach\(\(t\) => t\.stop\(\)\)/.test(ae) && /URL\.revokeObjectURL/.test(ae), 'the microphone is released and temporary files are freed')
     ok(/f\.size > LIMITS\.audioBytes/.test(ae) && /FILE_TYPES\[f\.type\]/.test(ae) && /accept="audio\/\*"/.test(ae), 'uploads: type and size checked before sending')
     ok(/path = `audio\/\$\{key\}\/\$\{lang\}-\$\{Date\.now\(\)\}\.\$\{ext\}`/.test(api10) && /createSignedUrl\(path, 3600\)/.test(api10) && /upsert: false/.test(api10) && /remove\(\[path\]\)/.test(api10) && /remove\(\[r\.data\]\)/.test(api10), 'upload: file first, then the record; a failed record removes the file; a replaced recording\'s old file is removed')
-    ok(/getUserMedia/.test(ae) && /microphone=\(self\)/.test(rd('vercel.json')) && rd('public/_headers').split('microphone=(self)').length - 1 === 2 && !/microphone=\(\*\)|microphone=\(\)/.test(rd('vercel.json') + rd('public/_headers')) && /camera=\(\)/.test(rd('vercel.json')), 'the page may use the microphone (this site only, for the recorder); camera, location and payment stay blocked')
+    ok(/getUserMedia/.test(ae) && /microphone=\(self\)/.test(rd('vercel.json')) && rd('public/_headers').split('microphone=(self)').length - 1 === 4 && !/microphone=\(\*\)|microphone=\(\)/.test(rd('vercel.json') + rd('public/_headers')) && /camera=\(\)/.test(rd('vercel.json')), 'the page may use the microphone (this site only, for the recorder); camera, location and payment stay blocked')
     ok(/media-src 'self' blob: https:\/\/\*\.supabase\.co/.test(rd('vercel.json')), 'the security policy still allows playing recordings')
     ok(/loadContent\('staff'\)/.test(ae) && /await refresh\(\)/.test(ae), 'after saving a recording the admin\'s screen refreshes')
     for (const k of ['ctTitle', 'ctPublish', 'audRecord', 'audMicDenied', 'ctErrPlaceholders']) ok(strings.ha[k] && strings.en[k] && strings.ha[k] !== strings.en[k], `text exists in both languages: ${k}`)

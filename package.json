@@ -16,7 +16,10 @@
     "generate:device": "node scripts/generate-device-levels.mjs",
     "generate:phase3": "node scripts/generate-phase3.mjs",
     "test:phase3": "node scripts/test-phase3.mjs",
-    "test:adult": "node scripts/test-adult.mjs"
+    "test:adult": "node scripts/test-adult.mjs",
+    "test:dashboard": "node scripts/test-dashboard.mjs",
+    "test:pwa": "node scripts/test-pwa.mjs",
+    "icons:generate": "python3 scripts/generate-pwa-icons.py"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

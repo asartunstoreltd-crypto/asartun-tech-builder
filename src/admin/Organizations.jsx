@@ -14,7 +14,7 @@ export function OrganizationList() {
   const [err, setErr] = useState('')
   useEffect(() => { listOrgs().then(setRows).catch((e) => setErr(e.message)) }, [])
   const create = async () => {
-    try { const id = await createOrg({ name: f.name.trim(), org_type: f.type, max_learners: f.max ? Number(f.max) : null, consent_confirmed: f.consent, consent_note: f.note || null }); nav(`/admin/organizations/${id}`) } catch (e) { setErr(e.message) }
+    try { const id = await createOrg({ name: f.name.trim(), org_type: f.type, max_learners: f.max ? Number(f.max) : null, consent_confirmed: f.consent, consent_note: f.note || null }); nav(`/dashboard/organizations/${id}`) } catch (e) { setErr(e.message) }
   }
   return (
     <>
@@ -23,7 +23,7 @@ export function OrganizationList() {
       {err && <p className="adm-err">{err}</p>}
       {rows && rows.map((o) => (
         <div className="adm-card" key={o.id}>
-          <Link to={`/admin/organizations/${o.id}`}><b>{o.name}</b></Link> <span className="adm-badge">{o.org_type}</span>{' '}
+          <Link to={`/dashboard/organizations/${o.id}`}><b>{o.name}</b></Link> <span className="adm-badge">{o.org_type}</span>{' '}
           <span className={'adm-badge ' + (o.status === 'active' ? 's-published' : 's-draft')}>{o.status}</span>
           {!o.consent_confirmed && <span className="adm-warn"> ⚠ consent not confirmed: children cannot join yet</span>}
         </div>))}
@@ -69,7 +69,7 @@ export function OrganizationDetail() {
   const active = ents.find((e) => e.active)
   return (
     <>
-      <Link to="/admin/organizations">← All organizations</Link>
+      <Link to="/dashboard/organizations">← All organizations</Link>
       <h2>{o.name}</h2>
       {msg && <p className={msg.err ? 'adm-err' : 'adm-good'}>{msg.err || msg.ok}</p>}
       <div className="adm-tabs">{[['learners', 'Learners'], ['report', 'Where they struggle'], ['classes', 'Classes'], ['lessons', 'Lessons'], ['staff', 'Staff'], ['premium', 'Premium'], ['settings', 'Settings']]
@@ -107,7 +107,7 @@ export function OrganizationDetail() {
         </div>
       )}
       {del && <Confirm title="Delete this organization?" phrase={o.name} yesText="Delete" onNo={() => setDel(false)}
-        onYes={go(async () => { await deleteOrg(id); nav('/admin/organizations') })}><p>Classes, staff access and memberships are removed. Learners’ own progress stays.</p></Confirm>}
+        onYes={go(async () => { await deleteOrg(id); nav('/dashboard/organizations') })}><p>Classes, staff access and memberships are removed. Learners’ own progress stays.</p></Confirm>}
     </>
   )
 }
