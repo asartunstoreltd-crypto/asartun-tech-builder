@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAdult } from '../AdultAuth.jsx'
+import Say from '../components/Say.jsx'
 import { learnerApi } from '../adultApi.js'
 import { lessonByKey } from '../courses.js'
 import { AREAS, T, learnerView, weeklySeries } from '../reports.js'
@@ -24,21 +25,21 @@ export default function Progress() {
   return (
     <main className="ad-page">
       <h1>{t('myProgress')}</h1>
-      {!v.anyProgress && v.attendance.marked === 0 ? <div className="ad-card"><p className="ad-big">{t('mpNothing')}</p><Link className="ad-btn primary" to="/adult/courses">{t('goLessons')}</Link></div> : (
+      {!v.anyProgress && v.attendance.marked === 0 ? <div className="ad-card"><p className="ad-big">{t('mpNothing')}</p><Say k="mpNothing" /><Link className="ad-btn primary" to="/adult/courses">{t('goLessons')}</Link></div> : (
         <>
-          <p className="ad-big">{t('mpIntro')}</p>
+          <p className="ad-big">{t('mpIntro')}</p><Say k="mpIntro" />
           <div className="ad-card">
             {UNITS.filter(([k]) => v[k].done > 0).map(([k, name]) => (
               <div key={k}><p>{t('mpUnit', { name: t(name), done: v[k].done, of: v[k].total, solid: v[k].solid })}</p><div className="ad-progress" aria-hidden="true"><i style={{ width: (v[k].done / v[k].total) * 100 + '%' }} /></div></div>))}
             {v.writtenTotal > 0 && <p>{t('mpWritten', { right: v.writtenRight, total: v.writtenTotal })}</p>}
-            <p className="ad-note">{t('mpSolidNote')}</p>
+            <p className="ad-note">{t('mpSolidNote')}</p><Say k="mpSolidNote" />
           </div>
           <div className="ad-card">
-            <h2>{t('mpCanDo')}</h2>
+            <h2>{t('mpCanDo')}</h2><Say k="mpCanDo" />
             {AREAS.filter((a) => v.areas[a].level !== 'none').map((a) => <p key={a}><strong>{t(AREA_KEY[a])}:</strong> {t(SELF_KEY[v.areas[a].level])}</p>)}
           </div>
           {v.practise.length > 0 && (
-            <div className="ad-card"><h2>{t('mpPractise')}</h2>
+            <div className="ad-card"><h2>{t('mpPractise')}</h2><Say k="mpPractise" />
               <ul className="ad-rules">{v.practise.map((k) => { const l = lessonByKey(k); return <li key={k}><Link to={'/adult/learn/' + k}>{l ? t(l.title.key, l.title.vars) : k}</Link></li> })}</ul></div>)}
           {(v.attendance.marked > 0 || v.markedWork > 0) && (
             <div className="ad-card">
@@ -46,11 +47,11 @@ export default function Progress() {
               {v.markedWork > 0 && <p>{t('mpWork', { n: v.markedWork })}</p>}
             </div>)}
           <div className="ad-card">
-            <h2>{t('mpWeeks')}</h2>
+            <h2>{t('mpWeeks')}</h2><Say k="mpWeeks" />
             <div className="ad-bars" role="img" aria-label={t('mpWeeks')}>{weeks.map((w) => <div key={w.week}><i style={{ height: (w.completed / max) * 100 + '%' }} /><span>{w.completed}</span></div>)}</div>
           </div>
-          {next && <div className="ad-card"><h2>{t('mpNext')}</h2><Link className="ad-btn primary" to={'/adult/learn/' + next.key}>{t(next.title.key, next.title.vars)}</Link></div>}
-          <p className="ad-note">{t('mpNote')}</p>
+          {next && <div className="ad-card"><h2>{t('mpNext')}</h2><Say k="mpNext" /><Link className="ad-btn primary" to={'/adult/learn/' + next.key}>{t(next.title.key, next.title.vars)}</Link></div>}
+          <p className="ad-note">{t('mpNote')}</p><Say k="mpNote" />
         </>)}
       <Link className="ad-link" to="/adult/home">{t('back')}</Link>
     </main>

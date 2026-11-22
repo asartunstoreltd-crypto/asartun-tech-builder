@@ -19,7 +19,7 @@ export function AdultProvider({ children }) {
   const setLang = (l) => { setLangState(l); try { localStorage.setItem('adult-lang', l) } catch { /* private mode */ } }
   const t = useCallback((k, vars) => {
     let s = template(lang, k)                                // dashboard lesson text, then the admin's published correction, then the built-in text
-    if (vars) for (const v in vars) s = s.replace('{' + v + '}', vars[v])
+    if (vars) for (const v in vars) s = s.split('{' + v + '}').join(vars[v])
     return s
   }, [lang, cv])                                             // eslint-disable-line react-hooks/exhaustive-deps
 

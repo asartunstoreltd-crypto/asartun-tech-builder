@@ -14,3 +14,19 @@ export async function loadContent(who) {
   } catch { /* keep the built-in content */ }
   setContentReady(true)
 }
+
+// Pick up the admin's newest texts and recordings (not lessons) while someone is already signed in: when a course or lesson opens,
+// and when the person comes back to the app. At most once every 30 seconds.
+let lastLight = 0
+export async function refreshContentLight(who) {
+  if (Date.now() - lastLight < 30000) return
+  lastLight = Date.now()
+  try { const c = await (who === 'staff' ? staffApi : learnerApi).contentLight(); if (!c.error) { setOverrides(c.texts); setAudio(c.audio) } } catch { /* keep what we have */ }
+}
+export function refreshOnFocus(who) {
+  refreshContentLight(who)
+  if (typeof document === 'undefined') return undefined
+  const h = () => { if (document.visibilityState === 'visible') refreshContentLight(who) }
+  document.addEventListener('visibilitychange', h)
+  return () => document.removeEventListener('visibilitychange', h)
+}

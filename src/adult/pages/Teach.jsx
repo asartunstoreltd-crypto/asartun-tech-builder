@@ -92,7 +92,7 @@ function Secret({ label, value, onClose }) {
   return <div className="ad-card ad-secret" role="status"><p>{label}</p><p className="ad-huge">{value}</p><p className="ad-note">{t('shownOnce')}</p><button className="ad-btn" onClick={onClose}>{t('done')}</button></div>
 }
 
-export function Learners({ role }) {
+function Learners({ role }) {
   const { t } = useAdult()
   const [q, setQ] = useState(''); const [rows, setRows] = useState([]); const [err, setErr] = useState(''); const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(null); const [adding, setAdding] = useState(false)
@@ -180,7 +180,7 @@ function LearnerDetail({ id, onBack }) {
   )
 }
 
-export function Classes({ role }) {
+function Classes({ role }) {
   const { t, lang } = useAdult()
   const [rows, setRows] = useState([]); const [courses, setCourses] = useState([]); const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
   const [f, setF] = useState({ name: '', course: '', mode: 'physical', location: '' }); const [phone, setPhone] = useState({}); const [email, setEmail] = useState({}); const [closing, setClosing] = useState(''); const [sched, setSched] = useState('')
