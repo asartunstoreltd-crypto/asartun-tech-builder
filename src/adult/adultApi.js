@@ -47,11 +47,6 @@ async function readContent(client) {
   ])
   return { texts: t.data || [], audio: a.data || [], courses: c.data || [], lessons: l.data || [], error: t.error || a.error || c.error || l.error }
 }
-async function readContentLight(client) {       // texts and recordings only: small, used to pick up changes while someone is already signed in
-  if (!client) return { texts: [], audio: [], error: 'config' }
-  const [t, a] = await Promise.all([select(client.from('adult_texts').select('key,lang,value,reviewed')), select(client.from('adult_audio').select('key,lang,path,mime,bytes,duration_ms,text_hash'))])
-  return { texts: t.data || [], audio: a.data || [], error: t.error || a.error }
-}
 const AUDIO_EXT = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac', 'audio/wav': 'wav', 'audio/x-m4a': 'm4a' }
 export const audioExtension = (mime) => AUDIO_EXT[mime] || null
 // a short-lived link to a private recording (the browser plays it; nothing is downloaded until someone presses Listen)
@@ -115,7 +110,6 @@ export const learnerApi = {
   deleteAccount: () => rpc(supabaseAdult, 'adult_delete_my_account', {}),
   myReport: () => rpc(supabaseAdult, 'adult_my_report', {}),
   content: () => readContent(supabaseAdult),
-  contentLight: () => readContentLight(supabaseAdult),
   // Phase 8: paying for a course, certificates
   paymentInfo: () => select(supabaseAdult.from('adult_payment_info').select('instructions,account_details,whatsapp').maybeSingle()),
   myPayments: () => select(supabaseAdult.from('adult_payments').select('id,course_id,status,method,reference,amount_ngn,reject_reason,created_at,decided_at').order('created_at', { ascending: false }).limit(50)),
@@ -151,7 +145,6 @@ export const staffApi = {
   signedUrl: async (path) => { try { const { data, error } = await supabaseStaff.storage.from('adult-submissions').createSignedUrl(path, 300); return error ? fail('generic') : { data: data.signedUrl, error: null } } catch (e) { return fail(net(e)) } },
   // Phase 10: content (adult admin) — texts, recordings, courses and lessons written in the dashboard
   content: () => readContent(supabaseStaff),
-  contentLight: () => readContentLight(supabaseStaff),
   contentDrafts: async () => {
     const [t, l, h] = await Promise.all([select(supabaseStaff.from('adult_text_drafts').select('key,lang,value,updated_at')), select(supabaseStaff.from('adult_cms_lesson_drafts').select('lesson_id,content,updated_at')), select(supabaseStaff.from('adult_cms_history').select('id,lesson_id,content,at').order('at', { ascending: false }).limit(200))])
     return { textDrafts: t.data || [], lessonDrafts: l.data || [], history: h.data || [], error: t.error || l.error || h.error }

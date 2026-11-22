@@ -7,11 +7,10 @@ import { WorkDetail, WorkList } from './pages/Work.jsx'
 import Progress from './pages/Progress.jsx'
 import { CertificatePage } from './pages/Certificate.jsx'
 import { PaymentHistory } from './pages/Pay.jsx'
-import { lazy, Suspense } from 'react'
+import { legacyTeachTarget } from '../dashboard/legacy.js'
 import './adult.css'
 
-// Facilitator area is split out so learners never download it.
-const Teach = lazy(() => import('./pages/Teach.jsx'))
+// The facilitator screens now live in the unified dashboard (/dashboard); the old address just forwards there.
 
 export default function AdultApp() {
   return (
@@ -38,7 +37,7 @@ export default function AdultApp() {
             <Route path="practice" element={<Practice />} />
             <Route path="help" element={<Help />} />
           </Route>
-          <Route path="teach/*" element={<Suspense fallback={null}><Teach /></Suspense>} />
+          <Route path="teach/*" element={<Navigate to={legacyTeachTarget()} replace />} />
           <Route path="*" element={<Navigate to="/adult" replace />} />
         </Routes>
       </div>

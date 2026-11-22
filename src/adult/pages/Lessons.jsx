@@ -11,9 +11,6 @@ import { enqueue, flush } from '../progressQueue.js'
 import { hasVoice, useVoices } from '../speech.js'
 import HandwritingCanvas from '../components/HandwritingCanvas.jsx'
 import AdultAudio, { VoiceHint } from '../components/AdultAudio.jsx'
-import Say from '../components/Say.jsx'
-import { clipFor, spokenItemsOfCourse, spokenKey } from '../content.js'
-import { refreshOnFocus } from '../contentLoader.js'
 import { TapStep } from '../components/DigitalSteps.jsx'
 import PayPanel from './Pay.jsx'
 import { CertificateBox } from './Certificate.jsx'
@@ -23,11 +20,11 @@ const LITERACY = 'basic-literacy'
 
 // Loads one course, whether the learner joined it, their progress, and the starting point advised by the assessment.
 export function useCourse(slug) {
-  const { contentReady } = useAdult()                                  // dashboard courses are registered once the admin's content has loaded
+  const { contentReady, profile } = useAdult()                         // dashboard courses are registered once the admin's content has loaded
   const [d, setD] = useState({ loading: true, error: false, course: null, enrolled: false, expired: false, endsAt: null, rows: [], start: null })
   const kind = COURSES[slug]?.kind
   const load = useCallback(async () => {
-    await flush((i) => learnerApi.recordLesson(i))                     // send anything that could not be saved earlier
+    await flush((i) => learnerApi.recordLesson(i), profile?.id)                   // send anything that could not be saved earlier
     const [c, e, p, a] = await Promise.all([learnerApi.courses(), learnerApi.enrollments(), learnerApi.progress(), learnerApi.latestAssessment()])
     const course = (c.data || []).find((x) => x.slug === slug) || null
     const keys = new Set((COURSES[slug] ? COURSES[slug].lessons : []).map((l) => l.key))
@@ -37,7 +34,7 @@ export function useCourse(slug) {
       loading: false, error: Boolean(c.error || e.error || p.error), course, enrolled: active, expired: Boolean(mine && !active), endsAt: mine ? mine.ends_at : null,
       rows: (p.data || []).filter((r) => keys.has(r.lesson_key)), start: ((a.data || [])[0]?.recommended?.[kind]?.start) || null,
     })
-  }, [slug, kind, contentReady])                                         // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slug, kind, contentReady, profile?.id])                                         // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
   return { ...d, reload: load }
 }
@@ -50,7 +47,6 @@ export function LessonList({ slug = LITERACY }) {
   const d = useCourse(slug)
   const [err, setErr] = useState('')
   const keys = useMemo(() => (def ? def.lessons.map((l) => l.key) : []), [def])
-  useEffect(() => refreshOnFocus('learner'), [])                      // new recordings and corrections appear without signing in again
   const sum = useMemo(() => summarize(d.rows, keys), [d.rows, keys])
   if (d.loading) return <div className="ad-page ad-center"><p className="ad-big">{t('wait')}</p></div>
   const join = async () => { setErr(''); const { error } = await learnerApi.enroll(d.course.id); if (error) setErr(t(error === 'network' ? 'errNetwork' : 'errGeneric')); else d.reload() }
@@ -64,18 +60,18 @@ export function LessonList({ slug = LITERACY }) {
   const startKey = sum.completed === 0 ? firstLessonOf(def, d.start).key : sum.next
   return (
     <main className="ad-page">
-      <h1>{t(def.titleKey)}</h1><Say k={def.titleKey} />
-      <VoiceHint items={spokenItemsOfCourse(def)} />
+      <h1>{t(def.titleKey)}</h1>
+      <VoiceHint />
       {d.error && <p className="ad-banner">{t('errNetwork')}</p>}
       <div className="ad-card">
-        <p className="ad-big">{t('progressLine', { done: sum.completed, total: sum.total })}</p><Say k="progressLine" vars={{ done: sum.completed, total: sum.total }} />
+        <p className="ad-big">{t('progressLine', { done: sum.completed, total: sum.total })}</p>
         <div className="ad-progress" aria-hidden="true"><i style={{ width: (sum.completed / sum.total) * 100 + '%' }} /></div>
         {sum.practice.length > 0 && <p className="ad-note">{t('practiceCount', { n: sum.practice.length })}</p>}
         {startKey && <Link className="ad-btn primary" to={'/adult/learn/' + startKey}>{sum.completed === 0 ? t('startHere') : t('continueLesson')}</Link>}
       </div>
       {def.units.map((u) => (
         <section key={u.id}>
-          <h2>{t(u.titleKey)}</h2><Say k={u.titleKey} />
+          <h2>{t(u.titleKey)}</h2>
           <ul className="ad-lessons">
             {u.lessons.map((l) => {
               const r = sum.byKey[l.key]; const done = r?.status === 'completed'
@@ -110,13 +106,13 @@ function TeachStep({ step, name, onNext }) {
     <p className="ad-giant" aria-label={step.letter}>{step.letter} <span>{step.lower}</span></p>
     <p className="ad-big">{t('teachLetter', { upper: step.letter, lower: step.lower, word: step.word })}</p>
     <p className="ad-huge">{step.word}</p>{gloss}
-    <AdultAudio text={t('teachLetter', { upper: step.letter, lower: step.lower, word: step.word })} audioKey={spokenKey(t('teachLetter', { upper: step.letter, lower: step.lower, word: step.word }))} big />
-    <AdultAudio text={step.word} lang="ha" audioKey={spokenKey(step.word)} big />
+    <AdultAudio text={t('teachLetter', { upper: step.letter, lower: step.lower, word: step.word })} big />
+    <AdultAudio text={step.word} lang="ha" big />
   </>)
   else if (step.kind === 'digit') body = (<>
     <p className="ad-giant">{step.n}</p><p className="ad-huge">{step.word}</p><Dots n={step.n} />
     <p className="ad-big">{t('teachDigit', { n: step.n, word: step.word })}</p>
-    <AdultAudio text={step.word} lang="ha" audioKey={spokenKey(step.word)} big /></>)
+    <AdultAudio text={step.word} lang="ha" big /></>)
   else if (step.kind === 'concept') {
     const w = step.worked ? formatItem(step.worked) : null
     body = (<>
@@ -127,11 +123,11 @@ function TeachStep({ step, name, onNext }) {
   }
   else if (step.kind === 'word') body = (<>
     <p className="ad-big">{t('teachWord', { word: step.word })}</p><p className="ad-giant small">{step.word}</p>{gloss}
-    <AdultAudio text={step.word} lang="ha" audioKey={spokenKey(step.word)} big /></>)
+    <AdultAudio text={step.word} lang="ha" big /></>)
   else if (step.kind === 'name') body = (<><p className="ad-big">{t('teachName')}</p><p className="ad-giant small">{name}</p></>)
   else body = (<>
     <p className="ad-big">{t(step.kind === 'message' ? 'teachMessage' : 'teachSentence')}</p><p className="ad-giant small">{step.sentence}</p>{gloss}
-    <AdultAudio text={step.sentence} lang="ha" audioKey={spokenKey(step.sentence)} big /></>)
+    <AdultAudio text={step.sentence} lang="ha" big /></>)
   return <>{body}<button className="ad-btn primary" onClick={onNext}>{t('next')}</button></>
 }
 
@@ -263,7 +259,6 @@ export function LessonPlayer() {
   const course = lesson ? courseOfLesson(lesson.key) : null
   const nav = useNavigate()
   const { t, profile, contentReady } = useAdult()
-  useEffect(() => refreshOnFocus('learner'), [])
   useVoices()
   const d = useCourse(course ? course.slug : LITERACY)
   const name = nameForGuide(profile?.full_name)
@@ -289,7 +284,7 @@ export function LessonPlayer() {
     learnerApi.recordLesson(payload).then(({ error }) => {
       if (!error) setSaveState('saved')
       else if (error === 'denied') setSaveState('denied')
-      else { enqueue(payload); setSaveState('queued') }
+      else { enqueue(payload, profile?.id); setSaveState('queued') }
     })
   }, [step, d.course, d.loading])                         // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -316,9 +311,9 @@ export function LessonPlayer() {
         big={step.cardKey ? <div className="ad-msgcard" role="note"><span className="ad-note">{t('dlFrom')}</span><p className="ad-big">{t(step.cardKey)}</p></div> : null} extra={<>{step.cardKey && <AdultAudio text={t(step.cardKey)} audioKey={step.cardKey} big />}<AdultAudio text={t(step.promptKey)} audioKey={step.promptKey} /></>} />
       case 'match': return <ChoiceStep kind="match" prompt={t('matchPrompt')} big={<p className="ad-giant">{step.prompt}</p>} options={step.options} target={step.target} onAnswer={answer} onNext={go} />
       case 'find': {
-        const hear = (voice || Boolean(clipFor('ha', spokenKey(step.target)))) && (step.kind === 'sameWord' || step.kind === 'sameSentence')   // with a Hausa voice this becomes a real reading task
+        const hear = voice && (step.kind === 'sameWord' || step.kind === 'sameSentence')   // with a Hausa voice this becomes a real reading task
         if (step.kind === 'hasLetter') return <ChoiceStep kind="find" prompt={t('findHasLetter', { upper: step.letter })} big={<p className="ad-giant small">{step.letter}</p>} options={step.options} target={step.target} onAnswer={answer} onNext={go} />
-        return <ChoiceStep kind="find" prompt={t(hear ? 'findHear' : 'findSame')} big={hear ? null : <p className="ad-giant small">{step.target}</p>} extra={hear ? <AdultAudio text={step.target} lang="ha" audioKey={spokenKey(step.target)} big /> : null} options={step.options} target={step.target} onAnswer={answer} onNext={go} />
+        return <ChoiceStep kind="find" prompt={t(hear ? 'findHear' : 'findSame')} big={hear ? null : <p className="ad-giant small">{step.target}</p>} extra={hear ? <AdultAudio text={step.target} lang="ha" big /> : null} options={step.options} target={step.target} onAnswer={answer} onNext={go} />
       }
       default: return <ReviewStep results={results} saveState={saveState} next={nextL} onList={() => nav(course.route)} />
     }

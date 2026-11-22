@@ -3,7 +3,6 @@ import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react
 import { useAdult } from '../AdultAuth.jsx'
 import { learnerApi } from '../adultApi.js'
 import HandwritingCanvas from '../components/HandwritingCanvas.jsx'
-import Say from '../components/Say.jsx'
 import Assessment, { AssessmentResult } from './Assessment.jsx'
 import { LangSwitch } from './Public.jsx'
 import { useCourse } from './Lessons.jsx'
@@ -47,15 +46,15 @@ export function Home() {
   if (d.loading) return <div className="ad-page ad-center"><p className="ad-big">{t('wait')}</p></div>
   return (
     <main className="ad-page">
-      <h1>{t('hello', { name: first })}</h1><Say k="hello" vars={{ name: first }} />
+      <h1>{t('hello', { name: first })}</h1>
       {d.error && <p className="ad-banner">{t('errNetwork')}</p>}
       {!d.assessment
-        ? <div className="ad-card"><p className="ad-big">{t('homeNoAssessment')}</p><Say k="homeNoAssessment" /><button className="ad-btn primary" onClick={() => nav('/adult/assessment')}>{t('asStart')}</button></div>
-        : <div className="ad-card"><h2>{t('yourStart')}</h2><Say k="yourStart" /><AssessmentResult recommended={d.assessment.recommended} scores={d.assessment.scores} needsConfirmation={d.assessment.needs_confirmation} />
+        ? <div className="ad-card"><p className="ad-big">{t('homeNoAssessment')}</p><button className="ad-btn primary" onClick={() => nav('/adult/assessment')}>{t('asStart')}</button></div>
+        : <div className="ad-card"><h2>{t('yourStart')}</h2><AssessmentResult recommended={d.assessment.recommended} scores={d.assessment.scores} needsConfirmation={d.assessment.needs_confirmation} />
             <Link className="ad-btn primary" to="/adult/courses">{t('goLessons')}</Link></div>}
       {Object.keys(COURSES).map((slug) => <CourseCard key={slug} slug={slug} />)}
       <Link className="ad-btn" to="/adult/progress">{t('myProgress')}</Link>
-      <p className="ad-note">{t('lessonsSoon')}</p><Say k="lessonsSoon" />
+      <p className="ad-note">{t('lessonsSoon')}</p>
     </main>
   )
 }
@@ -102,7 +101,7 @@ export function Courses() {
   if (d.loading) return <div className="ad-page ad-center"><p className="ad-big">{t('wait')}</p></div>
   return (
     <main className="ad-page">
-      <h1>{t('tabCourses')}</h1><Say k="tabCourses" />
+      <h1>{t('tabCourses')}</h1>
       {err && <p className="ad-error" role="alert">{err}</p>}
       {d.courses.map((c) => {
         const enrolled = d.enrolled.includes(c.id)
@@ -110,12 +109,12 @@ export function Courses() {
           <section className="ad-card" key={c.id}>
             <h2>{c.title[lang] || c.title.en}</h2>
             <p>{c.description[lang] || c.description.en}</p>
-            {c.status === 'coming_soon' && <><p className="ad-note">{t('comingSoon')}</p><Say k="comingSoon" /></>}
+            {c.status === 'coming_soon' && <p className="ad-note">{t('comingSoon')}</p>}
             <p className="ad-note">{c.is_free ? t('payFree') : t('payPremium') + ' · ₦' + c.price_ngn.toLocaleString()}</p>
             {c.status === 'published' && !enrolled && c.is_free && <button className="ad-btn primary" disabled={busy === c.id} onClick={() => enroll(c.id)}>{t('joinFree')}</button>}
-            {c.status === 'published' && !enrolled && !c.is_free && (<>{d.expired.includes(c.id) && <><p className="ad-error">{t('courseExpired')}</p><Say k="courseExpired" /></>}{routeOf(c) ? <Link className="ad-btn primary" to={routeOf(c)}>{t('payJoinHow')}</Link> : <><p className="ad-note">{t('lessonsNotYet')}</p><Say k="lessonsNotYet" /></>}</>)}
+            {c.status === 'published' && !enrolled && !c.is_free && (<>{d.expired.includes(c.id) && <p className="ad-error">{t('courseExpired')}</p>}{routeOf(c) ? <Link className="ad-btn primary" to={routeOf(c)}>{t('payJoinHow')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>)}
             {enrolled && d.ends[c.id] && <p className="ad-note">{t('courseUntil', { date: new Date(d.ends[c.id]).toLocaleDateString() })}</p>}
-            {c.status === 'published' && enrolled && <><p className="ad-ok">{t('joined')}</p><Say k="joined" />{routeOf(c) ? <Link className="ad-btn primary" to={routeOf(c)}>{t('openLessons')}</Link> : <><p className="ad-note">{t('lessonsNotYet')}</p><Say k="lessonsNotYet" /></>}</>}
+            {c.status === 'published' && enrolled && <><p className="ad-ok">{t('joined')}</p>{routeOf(c) ? <Link className="ad-btn primary" to={routeOf(c)}>{t('openLessons')}</Link> : <p className="ad-note">{t('lessonsNotYet')}</p>}</>}
           </section>
         )
       })}
@@ -129,7 +128,7 @@ export function Practice() {
   return (
     <main className="ad-page">
       <h1>{t('tabWrite')}</h1>
-      <p className="ad-note">{t('practiceNote')}</p><Say k="practiceNote" />
+      <p className="ad-note">{t('practiceNote')}</p>
       <HandwritingCanvas height={320} labels={{ pencil: t('pencil'), eraser: t('eraser'), undo: t('undo'), redo: t('redo'), clear: t('clear'), area: t('writeHere') }} />
     </main>
   )
@@ -145,7 +144,7 @@ export function Help() {
   return (
     <main className="ad-page">
       <h1>{t('tabHelp')}</h1>
-      <div className="ad-card"><p className="ad-big">{t('helpText')}</p><Say k="helpText" big /></div>
+      <div className="ad-card"><p className="ad-big">{t('helpText')}</p></div>
       <LangSwitch />
       <label className="ad-check"><input type="checkbox" checked={profile.audio_on} onChange={() => toggle('audio_on')} /> <span>{t('setAudio')}</span></label>
       <label className="ad-check"><input type="checkbox" checked={profile.low_data} onChange={() => toggle('low_data')} /> <span>{t('setLowData')}</span></label>

@@ -62,7 +62,7 @@ export default function MissionEditor() {
       <div className="adm-editor">
         <div className="adm-head">
           <div>
-            <Link to="/admin/missions">← All missions</Link>
+            <Link to="/dashboard/missions">← All missions</Link>
             <h2>{st.m.emoji} {st.m.title.en || st.m.title.ha || st.m.slug} <StatusBadge status={st.m.status} /></h2>
           </div>
           <div className="adm-actions">

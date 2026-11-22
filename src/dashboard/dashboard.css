@@ -75,26 +75,3 @@
   .dash-main{padding:12px}.dash-toolbar .dash-btn,.dash-toolbar .dash-input{flex:1 1 auto}
 }
 @media (prefers-reduced-motion:reduce){.dash-side,.dash-card{transition:none;animation:none}}
-/* Login, "No access" and toast screens are rendered outside .dash, so they need the colour variables too */
-.dash-center,
-.dash-toasts,
-.dash-modal {
-  --bg: #f0f7ff;
-  --ink: #1b2a41;
-  --muted: #5a6b85;
-  --line: #d5e2f5;
-  --brand: #0b5ed7;
-  --accent: #e67e00;
-  --good: #1d7a3a;
-  --bad: #c62828;
-  --card: #fff;
-}
-
-/* Make the Sign in button always visible, even if a variable is missing */
-.dash-center .dash-btn.primary {
-  background: #0b5ed7;
-  color: #fff;
-}
-.dash-center .dash-btn.primary:disabled {
-  opacity: .6;
-}

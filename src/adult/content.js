@@ -6,8 +6,6 @@
 //   2. a PUBLISHED correction by the admin, but only if it keeps exactly the same {placeholders} as the built-in text
 //   3. the built-in text in strings.js (a Hausa DRAFT until a native speaker has reviewed it)
 // A recording is used only while the text it was recorded for is unchanged (its fingerprint must still match).
-// Words, letters and sentences that the lessons speak are DATA in the course files, not text keys. Each gets a key made from the words themselves
-// (spokenKey), so one recording of "gida" serves every lesson that says "gida", and the key can never point at different words.
 import { strings } from './strings.js'
 import { COURSES, registerCourse, unregisterCourses } from './courses.js'
 import { SCREENS } from './digital.js'
@@ -49,11 +47,6 @@ export function setOverrides(rows) {
 // ---- recordings
 // 8-hex-digit fingerprint (FNV-1a) of a text: stored with a recording so a changed text does not keep playing the old words
 export const fnv = (s) => { let h = 0x811c9dc5; for (const ch of String(s)) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0 } return h.toString(16).padStart(8, '0') }
-export const SPOKEN_PREFIX = 'sp.'
-export const spokenKey = (text) => SPOKEN_PREFIX + fnv(text)
-export const isSpokenKey = (k) => typeof k === 'string' && k.startsWith(SPOKEN_PREFIX)
-// the fingerprint a recording of this key must carry: for a spoken-words key it is the key itself, otherwise the fingerprint of the current text
-export const wantedHash = (lang, key) => (isSpokenKey(key) ? key.slice(SPOKEN_PREFIX.length) : fnv(template(lang, key)))
 export function setAudio(rows) {
   store.audio = {}
   for (const r of rows || []) store.audio[r.lang + '|' + r.key] = r
@@ -63,9 +56,9 @@ export const rawClip = (lang, key) => store.audio[lang + '|' + key] || null
 // the recording to play for this text, or null if there is none or the text changed after it was recorded
 export function clipFor(lang, key) {
   const c = rawClip(lang, key)
-  return c && c.text_hash === wantedHash(lang, key) ? c : null
+  return c && c.text_hash === fnv(template(lang, key)) ? c : null
 }
-export const clipStale = (lang, key) => { const c = rawClip(lang, key); return Boolean(c && c.text_hash !== wantedHash(lang, key)) }
+export const clipStale = (lang, key) => { const c = rawClip(lang, key); return Boolean(c && c.text_hash !== fnv(template(lang, key))) }
 
 // ---- lessons written in the dashboard
 const DYN_LESSONS = new Map()         // lesson key -> { course:'custom', unit, applied:false, area }
@@ -169,44 +162,6 @@ export function lessonTextKeys(lesson) {
   const walk = (o) => { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') Object.values(o).forEach(walk); else add(o) }
   walk(lesson.steps)
   return [...keys]
-}
-// ---- what a built-in lesson says aloud, so every piece can be recorded (and so the hint "your phone cannot speak Hausa" knows what is covered)
-const fill = (str, vars) => { let o = str; for (const v in vars || {}) o = o.split('{' + v + '}').join(vars[v]); return o }
-export const render = (lang, key, vars) => fill(template(lang, key), vars)
-// Returns [{ key, lang, text, label }] — one entry per thing the player speaks in this lesson (duplicates removed).
-export function spokenItems(lesson) {
-  const out = []; const seen = new Set()
-  const add = (key, lang, text, label) => { const id = lang + '|' + key; if (text && !seen.has(id)) { seen.add(id); out.push({ key, lang, text, label }) } }
-  const words = (text, label) => add(spokenKey(text), 'ha', text, label)          // Hausa words are spoken with a Hausa voice whatever the screen language
-  const keyed = (key, label) => { for (const l of ['ha', 'en']) add(key, l, template(l, key), label) }
-  for (const st of lesson.steps || []) {
-    if (st.type === 'teach') {
-      if (st.kind === 'letter') { for (const l of ['ha', 'en']) { const text = render(l, 'teachLetter', { upper: st.letter, lower: st.lower, word: st.word }); add(spokenKey(text), l, text, 'letter') } words(st.word, 'word') }
-      else if (st.kind === 'digit' || st.kind === 'word') words(st.word, st.kind)
-      else if (st.kind === 'sentence' || st.kind === 'message') words(st.sentence, st.kind)
-      else if (st.kind === 'concept') keyed(st.conceptKey, 'teaching')
-    } else if (st.type === 'find' && (st.kind === 'sameWord' || st.kind === 'sameSentence')) words(st.target, 'find')
-    else if (st.type === 'dchoice') { if (st.cardKey) keyed(st.cardKey, 'message'); keyed(st.promptKey, 'question') }
-    else if (st.type === 'tap') keyed(st.askKey, 'instruction')
-  }
-  return out
-}
-export const spokenItemsOfCourse = (def) => { const seen = new Set(); const out = []; for (const l of (def && def.lessons) || []) for (const it of spokenItems(l)) { const id = it.lang + '|' + it.key; if (!seen.has(id)) { seen.add(id); out.push(it) } } return out }
-// how many of these items have a recording that still matches its words
-export const coverage = (items) => { let done = 0; for (const it of items || []) if (clipFor(it.lang, it.key)) done++; return { total: (items || []).length, done } }
-// ---- texts on the signed-in learner screens that have a Listen button. Only fixed texts (no name or number inside) can be recorded.
-export const SCREEN_TEXTS = [
-  { id: 'home', keys: ['tabCourses', 'homeNoAssessment', 'yourStart', 'lessonsSoon'] },
-  { id: 'courses', keys: ['comingSoon', 'lessonsNotYet', 'courseExpired', 'joined'] },
-  { id: 'progress', keys: ['mpIntro', 'mpNothing', 'mpCanDo', 'mpSolidNote', 'mpPractise', 'mpWeeks', 'mpNext', 'mpNote'] },
-  { id: 'write', keys: ['practiceNote'] },
-  { id: 'help', keys: ['helpText'] },
-]
-// plus the course names and section names of the built-in courses (the course list screen)
-export function screenGroups() {
-  const keys = []
-  for (const c of Object.values(COURSES)) if (!c.cms) { keys.push(c.titleKey); for (const u of c.units) keys.push(u.titleKey) }
-  return [...SCREEN_TEXTS, { id: 'lists', keys: [...new Set(keys)] }]
 }
 export const isLessonKeyName = (k) => /^(d[tcqowm]_|du_|ds_|dl[A-Z])/.test(k)
 export { COURSES }

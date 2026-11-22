@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAdult } from '../AdultAuth.jsx'
 import { audioExtension, signedAudioUrl, staffApi } from '../adultApi.js'
-import { LIMITS, clipStale, getAudioClient, rawClip, wantedHash } from '../content.js'
+import { LIMITS, clipStale, fnv, getAudioClient, rawClip, template } from '../content.js'
 import { loadContent } from '../contentLoader.js'
 
 // Adult-admin tool: one recording for one text in one language. Record with the phone's microphone, or upload a file.
@@ -52,12 +52,12 @@ export default function AudioEditor({ keyName, lang }) {
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(''); const [err, setErr] = useState('')
   const playing = useRef(null)
   const clip = rawClip(lang, keyName); const stale = clipStale(lang, keyName)
-  const hash = wantedHash(lang, keyName)            // a built-in word/sentence: the fingerprint of the words themselves; any other text: the fingerprint of its current text
+  const text = template(lang, keyName)
   const refresh = async () => { await loadContent('staff') }
   const save = async ({ blob, mime, ms }) => {
     setBusy(true); setErr(''); setMsg('')
     if (!audioExtension(mime) || blob.size > LIMITS.audioBytes || (ms && ms > LIMITS.audioMs)) { setBusy(false); return setErr(t('audTooBig')) }
-    const { error } = await staffApi.uploadAudio({ key: keyName, lang, blob, mime, durationMs: ms ? Math.max(1, Math.round(ms)) : null, textHash: hash })
+    const { error } = await staffApi.uploadAudio({ key: keyName, lang, blob, mime, durationMs: ms ? Math.max(1, Math.round(ms)) : null, textHash: fnv(text) })
     setBusy(false)
     if (error) return setErr(t(ERR[error] || 'errGeneric'))
     r.discard(); setMsg(t('audSaved')); await refresh()
@@ -81,7 +81,7 @@ export default function AudioEditor({ keyName, lang }) {
     playing.current = new Audio(url); playing.current.play().catch(() => setErr(t('audErr')))
   }
   const remove = async () => { setBusy(true); setErr(''); const { error } = await staffApi.deleteAudio(keyName, lang); setBusy(false); if (error) return setErr(t(ERR[error] || 'errGeneric')); setMsg(''); await refresh() }
-  const confirm = async () => { setBusy(true); const { error } = await staffApi.confirmAudio(keyName, lang, hash); setBusy(false); if (error) return setErr(t(ERR[error] || 'errGeneric')); await refresh() }
+  const confirm = async () => { setBusy(true); const { error } = await staffApi.confirmAudio(keyName, lang, fnv(text)); setBusy(false); if (error) return setErr(t(ERR[error] || 'errGeneric')); await refresh() }
   return (
     <div className="ad-audio-editor">
       <p className="ad-note"><strong>{t('audTitle')} ({lang === 'ha' ? 'Hausa' : 'English'})</strong>: {clip ? t('audHas', { s: clip.duration_ms ? Math.round(clip.duration_ms / 1000) : '?' }) : t('audNone')}</p>

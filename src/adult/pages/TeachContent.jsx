@@ -4,7 +4,7 @@ import { useAdult } from '../AdultAuth.jsx'
 import AudioEditor from '../components/AudioEditor.jsx'
 import { PhoneScreen } from '../components/DigitalSteps.jsx'
 import { COURSES } from '../courses.js'
-import { AREAS_CMS, LIMITS, bi, clipFor, coverage, isLessonKeyName, lessonTextKeys, newStepId, placeholders, screenGroups, spokenItems, spokenItemsOfCourse, template, validateLessonContent } from '../content.js'
+import { AREAS_CMS, LIMITS, bi, isLessonKeyName, lessonTextKeys, newStepId, placeholders, validateLessonContent } from '../content.js'
 import { loadContent } from '../contentLoader.js'
 import { SCREENS } from '../digital.js'
 import { strings } from '../strings.js'
@@ -41,10 +41,9 @@ export default function ContentTab() {
       <h2>{t('ctTitle')}</h2>
       <p className="ad-note">{t('ctIntro')}</p>
       {d.error && <p className="ad-banner">{t('errNetwork')}</p>}
-      <div className="ad-subtabs" role="tablist">{[['texts', 'ctTexts'], ['lessons', 'ctBuiltIn'], ['screens', 'ctScreens'], ['courses', 'ctCourses']].map(([k, l]) => <button key={k} role="tab" aria-selected={sub === k} className={sub === k ? 'on' : ''} onClick={() => setSub(k)}>{t(l)}</button>)}</div>
+      <div className="ad-subtabs" role="tablist">{[['texts', 'ctTexts'], ['lessons', 'ctBuiltIn'], ['courses', 'ctCourses']].map(([k, l]) => <button key={k} role="tab" aria-selected={sub === k} className={sub === k ? 'on' : ''} onClick={() => setSub(k)}>{t(l)}</button>)}</div>
       {sub === 'texts' && <TextList d={d} changed={changed} />}
       {sub === 'lessons' && <BuiltInLessons d={d} changed={changed} />}
-      {sub === 'screens' && <ScreenTexts />}
       {sub === 'courses' && <CourseBuilder d={d} changed={changed} />}
     </section>
   )
@@ -144,50 +143,8 @@ function BuiltInLessons({ d, changed }) {
       <p className="ad-note">{t('ctBuiltInNote')}</p>
       <label>{t('apCodeCourse')}<select value={slug} onChange={(e) => { setSlug(e.target.value); setLk('') }}>{courses.map((c) => <option key={c.slug} value={c.slug}>{t(c.titleKey)}</option>)}</select></label>
       <label>{t('ctLesson')}<select value={lk} onChange={(e) => setLk(e.target.value)}><option value="">—</option>{def && def.lessons.map((l) => <option key={l.key} value={l.key}>{t(l.title.key, l.title.vars)}</option>)}</select></label>
-      {def && <p className="ad-note"><strong>{t('ctRecorded', coverage(spokenItemsOfCourse(def)))}</strong></p>}
-      {lesson && <SpokenItems lesson={lesson} />}
       {lesson && (lessonTextKeys(lesson).length === 0 ? <p className="ad-note">{t('ctNoTexts')}</p> : lessonTextKeys(lesson).map((k) => (
         <div key={k}><p><strong>{k}</strong></p><TextEditor key={k + lang} k={k} pub={pub} dr={dr} changed={changed} /></div>)))}
-    </div>
-  )
-}
-
-// the fixed texts on the learner's home, course list, progress, write and help screens: one recording slot per language
-const SCREEN_LABEL = { home: 'ctScrHome', courses: 'ctScrCourses', progress: 'ctScrProgress', write: 'ctScrWrite', help: 'ctScrHelp', lists: 'ctScrLists' }
-function ScreenTexts() {
-  const { t } = useAdult()
-  const groups = screenGroups()
-  const all = groups.flatMap((g) => g.keys.flatMap((k) => ['ha', 'en'].map((lang) => ({ key: k, lang }))))
-  return (
-    <div className="ad-stack">
-      <p className="ad-note">{t('ctScreensNote')}</p>
-      <p><strong>{t('ctRecorded', coverage(all))}</strong></p>
-      {groups.map((g) => (
-        <div key={g.id} className="ad-card ad-stack">
-          <h3>{t(SCREEN_LABEL[g.id])}</h3>
-          {g.keys.map((k) => (
-            <details key={k}>
-              <summary><strong>{template('ha', k).slice(0, 80)}</strong> <span className="ad-note">· {['ha', 'en'].every((l) => clipFor(l, k)) ? t('ctMarkDone') : t('ctMarkTodo')}</span></summary>
-              <AudioEditor keyName={k} lang="ha" /><AudioEditor keyName={k} lang="en" />
-            </details>))}
-        </div>))}
-    </div>
-  )
-}
-
-// everything this lesson says aloud (letters, words, sentences, questions): one recording slot each, shared by every lesson that says the same words
-function SpokenItems({ lesson }) {
-  const { t } = useAdult()
-  const items = spokenItems(lesson)
-  if (items.length === 0) return null
-  return (
-    <div className="ad-card ad-stack">
-      <h3>{t('ctSpoken')}</h3><p className="ad-note">{t('ctSpokenNote')}</p>
-      {items.map((it) => (
-        <details key={it.lang + it.key}>
-          <summary><strong>{it.text.length > 70 ? it.text.slice(0, 70) + '…' : it.text}</strong> <span className="ad-note">({it.lang === 'ha' ? 'Hausa' : 'English'}) · {clipFor(it.lang, it.key) ? t('ctMarkDone') : t('ctMarkTodo')}</span></summary>
-          <AudioEditor keyName={it.key} lang={it.lang} />
-        </details>))}
     </div>
   )
 }

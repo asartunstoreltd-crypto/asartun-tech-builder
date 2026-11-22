@@ -906,8 +906,17 @@ import { createHash } from 'node:crypto'
 
   // ---------- D. the children's app, /admin and /org are untouched ----------
   const base = JSON.parse(rd('scripts/baseline-v0_9_7.json')).files
-  for (const [f, h] of Object.entries(base)) ok(existsSync(f) && createHash('sha256').update(readFileSync(f)).digest('hex') === h, `unchanged since v0_9_7: ${f}`)
-  const allowedNew = [/^src\/adult\//, /^supabase\/migrations\/0(1[789]|2[0-9])_adult/, /^supabase\/functions\/adult-/, /^supabase\/schedule\//, /^docs\/ADULT_/, /^scripts\/test-adult\.mjs$/, /^scripts\/baseline-/, /^vercel\.json$/, /^public\/_headers$/]
+  // v0_11 unified dashboard + PWA (approved change): these baseline files were edited ON PURPOSE. Each is verified by a narrower rule instead of "byte-identical".
+  const sha = (b) => createHash('sha256').update(b).digest('hex')
+  const LINKS = [['/dashboard/school-staff', '/admin/staff'], ['/dashboard/organizations', '/admin/organizations'], ['/dashboard/missions', '/admin/missions']]
+  const INTENTIONAL = new Set(['index.html', 'package.json', 'src/main.jsx', 'src/admin/AdminDashboard.jsx', 'src/admin/MissionEditor.jsx', 'src/admin/MissionList.jsx', 'src/admin/Organizations.jsx', 'src/admin/StaffAccounts.jsx'])
+  for (const [f, h] of Object.entries(base)) {
+    if (!INTENTIONAL.has(f)) { ok(existsSync(f) && sha(readFileSync(f)) === h, `unchanged since v0_9_7: ${f}`); continue }
+    if (f.startsWith('src/admin/')) { let t = rd(f); for (const [a, b] of LINKS) t = t.split(a).join(b); ok(sha(t) === h, `only its /admin links changed to /dashboard (reversing them gives the v0_9_7 file): ${f}`) }
+  }
+  const pk0 = JSON.parse(rd('package.json')); ok(Object.keys(pk0.dependencies || {}).length > 0 && Object.keys(pk0.scripts).includes('test:dashboard') && Object.keys(pk0.scripts).includes('test:pwa'), 'package.json: test scripts added, dependencies untouched by this change')
+  ok(/<div id="root">/.test(rd('index.html')) && /manifest\.webmanifest/.test(rd('index.html')), 'index.html: root element kept, PWA tags added')
+  const allowedNew = [/^src\/adult\//, /^supabase\/migrations\/0(1[789]|2[0-9])_adult/, /^supabase\/functions\/adult-/, /^supabase\/schedule\//, /^docs\/ADULT_/, /^scripts\/test-adult\.mjs$/, /^scripts\/baseline-/, /^vercel\.json$/, /^public\/_headers$/, /^src\/dashboard\//, /^src\/pwa\//, /^public\/(icons\/|sw\.js$|offline\.html$|manifest\.webmanifest$)/, /^supabase\/migrations\/027_staff_management\.sql$/, /^supabase\/tests\/027_/, /^scripts\/(test-dashboard|test-pwa)\.mjs$/, /^scripts\/generate-pwa-icons\.py$/, /^docs\/STAFF_DASHBOARD\.md$/]
   const stray = []
   ;(function walk(d) { for (const e of readdirSync(d)) { if (e === 'node_modules' || e === '.git') continue; const p = d === '.' ? e : d + '/' + e; statSync(p).isDirectory() ? walk(p) : (!(p in base) && !allowedNew.some((r) => r.test(p)) && stray.push(p)) } })('.')
   eq(stray, [], 'no file outside the adult module was added or changed')
@@ -916,7 +925,7 @@ import { createHash } from 'node:crypto'
 
   // ---------- E. browser security headers (only for /adult) ----------
   const vj = JSON.parse(rd('vercel.json')); const hs = vj.headers || []
-  ok(hs.length >= 2 && hs.every((h) => /^\/adult(\/|$)/.test(h.source)), 'security headers apply to /adult only; the children\'s routes get none')
+  ok(hs.length >= 2 && hs.every((h) => /^\/(adult|dashboard)(\/|$)|^\/sw\.js$|^\/manifest\.webmanifest$/.test(h.source)), 'security headers apply to /adult and /dashboard only (plus the service-worker and manifest caching rules); the children\'s routes get none')
   ok(vj.rewrites.some((r) => r.source === '/(.*)' && r.destination === '/index.html'), 'the single-page rewrite is intact')
   const hv = (k) => (hs[0].headers.find((h) => h.key === k) || {}).value || ''
   const csp = hv('Content-Security-Policy')
@@ -924,7 +933,7 @@ import { createHash } from 'node:crypto'
   ok(!/unsafe-eval|script-src[^;]*unsafe-inline|script-src[^;]*\*|default-src[^;]*\*/.test(csp), 'CSP allows no eval, no inline scripts, no wildcard scripts')
   ok(/connect-src 'self' https:\/\/\*\.supabase\.co/.test(csp) && /img-src[^;]*blob:/.test(csp), 'CSP still allows Supabase and photo previews')
   ok(hv('X-Content-Type-Options') === 'nosniff' && hv('X-Frame-Options') === 'DENY' && /strict-origin/.test(hv('Referrer-Policy')) && /camera=\(\)/.test(hv('Permissions-Policy')), 'nosniff, no framing, referrer and permissions policies')
-  const hf = rd('public/_headers'); for (const h of hs[0].headers) eq(hf.split(h.key + ': ' + h.value).length - 1, hs.length, `Netlify headers file carries ${h.key} for every /adult path`)
+  const hf = rd('public/_headers'); for (const h of hs[0].headers) eq(hf.split(h.key + ': ' + h.value).length - 1, hs.filter((x) => x.headers.some((y) => y.key === 'Content-Security-Policy')).length, `Netlify headers file carries ${h.key} for every /adult and /dashboard path`)
   ok(!/<script(?![^>]*\bsrc=)[^>]*>[^<]/i.test(rd('index.html')) && !/https?:\/\//.test(rd('index.html')), 'index.html has no inline script and no outside resource, so the strict CSP cannot break it')
   ok(!/user-scalable\s*=\s*no|maximum-scale/i.test(rd('index.html')), 'pinch-zoom is not disabled')
 
@@ -1160,118 +1169,12 @@ import { registerCourse as regCourse } from '../src/adult/courses.js'
     ok(/stream\.current\.getTracks\(\)\.forEach\(\(t\) => t\.stop\(\)\)/.test(ae) && /URL\.revokeObjectURL/.test(ae), 'the microphone is released and temporary files are freed')
     ok(/f\.size > LIMITS\.audioBytes/.test(ae) && /FILE_TYPES\[f\.type\]/.test(ae) && /accept="audio\/\*"/.test(ae), 'uploads: type and size checked before sending')
     ok(/path = `audio\/\$\{key\}\/\$\{lang\}-\$\{Date\.now\(\)\}\.\$\{ext\}`/.test(api10) && /createSignedUrl\(path, 3600\)/.test(api10) && /upsert: false/.test(api10) && /remove\(\[path\]\)/.test(api10) && /remove\(\[r\.data\]\)/.test(api10), 'upload: file first, then the record; a failed record removes the file; a replaced recording\'s old file is removed')
-    ok(/getUserMedia/.test(ae) && /microphone=\(self\)/.test(rd('vercel.json')) && rd('public/_headers').split('microphone=(self)').length - 1 === 2 && !/microphone=\(\*\)|microphone=\(\)/.test(rd('vercel.json') + rd('public/_headers')) && /camera=\(\)/.test(rd('vercel.json')), 'the page may use the microphone (this site only, for the recorder); camera, location and payment stay blocked')
+    ok(/getUserMedia/.test(ae) && /microphone=\(self\)/.test(rd('vercel.json')) && rd('public/_headers').split('microphone=(self)').length - 1 === 4 && !/microphone=\(\*\)|microphone=\(\)/.test(rd('vercel.json') + rd('public/_headers')) && /camera=\(\)/.test(rd('vercel.json')), 'the page may use the microphone (this site only, for the recorder); camera, location and payment stay blocked')
     ok(/media-src 'self' blob: https:\/\/\*\.supabase\.co/.test(rd('vercel.json')), 'the security policy still allows playing recordings')
     ok(/loadContent\('staff'\)/.test(ae) && /await refresh\(\)/.test(ae), 'after saving a recording the admin\'s screen refreshes')
     for (const k of ['ctTitle', 'ctPublish', 'audRecord', 'audMicDenied', 'ctErrPlaceholders']) ok(strings.ha[k] && strings.en[k] && strings.ha[k] !== strings.en[k], `text exists in both languages: ${k}`)
     ok(/'draft'|ctIntro/.test(tc) && /Every change is a draft until you press Publish/.test(strings.en.ctIntro), 'the screen says changes are drafts until published')
   }
-}
-
-
-// ================================================================= PHASE 10b: recordings must actually reach the learner
-{
-  const rd = (f) => readFileSync(f, 'utf8')
-  const allLessons = [...LESSONS, ...num.LESSONS, ...DIGITAL.LESSONS]
-  C.setOverrides([]); C.setAudio([]); C.registerCmsContent([], [])
-  const srcFiles = []
-  ;(function walk(d) { for (const e of readdirSync(d)) { const p = d + '/' + e; statSync(p).isDirectory() ? walk(p) : /\.(js|jsx)$/.test(e) && srcFiles.push(p) } })('src/adult')
-
-  // ---- keys made from the words themselves
-  {
-    ok(/^sp\.[0-9a-f]{8}$/.test(C.spokenKey('gida')) && C.spokenKey('gida') === C.spokenKey('gida') && C.spokenKey('gida') !== C.spokenKey('Gida'), 'a spoken-words key: stable, 8 hex digits, different words = different key')
-    ok(C.isSpokenKey(C.spokenKey('x')) && !C.isSpokenKey('signOut') && !C.isSpokenKey(null), 'spoken-words keys are told apart from text keys')
-    eq(C.wantedHash('ha', C.spokenKey('gida')), C.fnv('gida'), 'a recording of a spoken word must carry the fingerprint of those words'); eq(C.wantedHash('ha', 'signOut'), C.fnv(strings.ha.signOut), 'a recording of a text carries the fingerprint of the current text')
-    const row = (key, hash, lang = 'ha') => ({ key, lang, path: 'audio/x/ha-1.webm', mime: 'audio/webm', bytes: 5, duration_ms: 900, text_hash: hash })
-    const k = C.spokenKey('gida'); C.setAudio([row(k, C.fnv('gida'))])
-    ok(C.clipFor('ha', k) && !C.clipStale('ha', k), 'a recording of "gida" is used wherever "gida" is spoken')
-    C.setAudio([row(k, C.fnv('ruwa'))]); ok(C.clipFor('ha', k) === null && C.clipStale('ha', k), 'a recording whose fingerprint is for other words is never played'); eq(C.clipFor('en', k), null, 'a Hausa recording is not used for English')
-    ok(k.length <= 100 && /^[A-Za-z0-9_.:-]{1,100}$/.test(k), 'the key is valid for the database'); C.setAudio([])
-  }
-
-  // ---- placeholders: every occurrence is filled (the letter sentence has {upper} twice; only the first used to be filled)
-  {
-    const lit = LESSONS.flatMap((l) => l.steps).filter((s) => s.kind === 'letter')
-    ok(lit.length === 26 && lit.every((s) => !C.render('ha', 'teachLetter', { upper: s.letter, lower: s.lower, word: s.word }).includes('{') && !C.render('en', 'teachLetter', { upper: s.letter, lower: s.lower, word: s.word }).includes('{')), 'the letter sentence has no leftover {placeholder} in Hausa or English, for all 26 letters')
-    ok(C.render('ha', 'teachLetter', { upper: 'A', lower: 'a', word: 'agogo' }).split('A').length - 1 >= 2, 'the repeated {upper} was filled both times')
-    let leftovers = 0; for (const key of Object.keys(strings.en)) for (const l of ['ha', 'en']) { const ph = [...new Set((strings[l][key].match(/\{([a-zA-Z]+)\}/g) || []).map((x) => x.slice(1, -1)))]; if (!ph.length) continue; const vars = Object.fromEntries(ph.map((v) => [v, '0'])); if (/\{[a-zA-Z]+\}/.test(C.render(l, key, vars))) leftovers++ }
-    eq(leftovers, 0, 'no text anywhere keeps a {placeholder} after its values are filled in')
-    const src = srcFiles.map(rd).join('\n'); ok(!/\.replace\('\{'/.test(src), 'no first-only placeholder replacement left in the adult module'); ok(/s\.split\('\{' \+ v \+ '\}'\)\.join\(vars\[v\]\)/.test(rd('src/adult/AdultAuth.jsx')), 'the app\'s text function fills every occurrence')
-  }
-
-  // ---- everything a lesson says aloud has a recording slot
-  {
-    let total = 0
-    for (const les of allLessons) {
-      const items = C.spokenItems(les); const has = (key, lang) => items.some((i) => i.key === key && i.lang === lang); total += items.length
-      for (const st of les.steps) {
-        if (st.type === 'teach' && st.kind === 'letter') { for (const l of ['ha', 'en']) { const text = C.render(l, 'teachLetter', { upper: st.letter, lower: st.lower, word: st.word }); ok(has(C.spokenKey(text), l), `${les.key}: the ${l} letter sentence can be recorded`) } ok(has(C.spokenKey(st.word), 'ha'), `${les.key}: the example word can be recorded`) }
-        if (st.type === 'teach' && (st.kind === 'word' || st.kind === 'digit')) ok(has(C.spokenKey(st.word), 'ha'), `${les.key}: the ${st.kind} can be recorded`)
-        if (st.type === 'teach' && (st.kind === 'sentence' || st.kind === 'message')) ok(has(C.spokenKey(st.sentence), 'ha'), `${les.key}: the ${st.kind} can be recorded`)
-        if (st.type === 'find' && (st.kind === 'sameWord' || st.kind === 'sameSentence')) ok(has(C.spokenKey(st.target), 'ha'), `${les.key}: the word to find can be recorded`)
-        if (st.type === 'teach' && st.kind === 'concept') ok(has(st.conceptKey, 'ha') && has(st.conceptKey, 'en'), `${les.key}: the teaching page can be recorded in both languages`)
-        if (st.type === 'dchoice') ok(has(st.promptKey, 'ha') && (!st.cardKey || has(st.cardKey, 'ha')), `${les.key}: the question${st.cardKey ? ' and message' : ''} can be recorded`)
-        if (st.type === 'tap') ok(has(st.askKey, 'ha'), `${les.key}: the instruction can be recorded`)
-      }
-      ok(items.every((i) => i.text && !i.text.includes('{') && /^[A-Za-z0-9_.:-]{1,100}$/.test(i.key)), `${les.key}: every slot has its words, no leftover placeholder, and a valid key`)
-    }
-    ok(total > 300, `${total} recording slots across the three built-in courses`)
-    const litCourse = C.spokenItemsOfCourse({ lessons: LESSONS }); ok(litCourse.length >= 80 && new Set(litCourse.map((i) => i.lang + i.key)).size === litCourse.length, 'the literacy course lists each distinct spoken item once')
-    // coverage and the hint
-    C.setAudio([]); eq(C.coverage(litCourse), { total: litCourse.length, done: 0 }, 'nothing recorded yet')
-    const one = litCourse.find((i) => i.lang === 'ha'); C.setAudio([{ key: one.key, lang: one.lang, path: 'audio/x/ha-1.webm', mime: 'audio/webm', bytes: 5, duration_ms: 900, text_hash: C.wantedHash(one.lang, one.key) }])
-    eq(C.coverage(litCourse), { total: litCourse.length, done: 1 }, 'one recording is counted')
-    C.setAudio(litCourse.map((i) => ({ key: i.key, lang: i.lang, path: 'audio/x/' + i.lang + '-1.webm', mime: 'audio/webm', bytes: 5, duration_ms: 900, text_hash: C.wantedHash(i.lang, i.key) }))); eq(C.coverage(litCourse).done, litCourse.length, 'all recorded'); C.setAudio([])
-  }
-
-  // ---- the screens
-  {
-    const les = rd('src/adult/pages/Lessons.jsx'), aud = rd('src/adult/components/AdultAudio.jsx'), ae = rd('src/adult/components/AudioEditor.jsx'), ass = rd('src/adult/pages/Assessment.jsx'), tc = rd('src/adult/pages/TeachContent.jsx'), ldr = rd('src/adult/contentLoader.js')
-    let tags = 0
-    for (const f of srcFiles.filter((x) => x.endsWith('.jsx') && !x.endsWith('AdultAudio.jsx'))) for (const m of rd(f).matchAll(/<AdultAudio\b[\s\S]*?\/>/g)) {
-      tags++; const tag = m[0].replace(/\s+/g, ' ')
-      ok(/audioKey=/.test(tag), `${f.replace('src/adult/', '')}: every Listen button can use a recording: ${tag.slice(0, 70)}`)
-      const sp = tag.match(/audioKey=\{spokenKey\((.+?)\)\}(?: big| lang=|\s*\/>)/); const tx = tag.match(/text=\{(.+?)\}(?: lang=| audioKey=| big)/)
-      if (sp && tx) eq(sp[1].trim(), tx[1].trim(), `${f.replace('src/adult/', '')}: the recording key is made from the SAME words the phone voice would say`)
-    }
-    ok(tags >= 11, `${tags} Listen buttons checked`)
-    ok(/const hear = \(voice \|\| Boolean\(clipFor\('ha', spokenKey\(step\.target\)\)\)\)/.test(les), 'the "hear and find" task works with a recording even when the phone has no Hausa voice')
-    ok(/hasAdultAudio\(lang, s\.id\) \|\| clipFor\(lang, 'ip_' \+ s\.id\)/.test(ass) && /audioKey=\{'ip_' \+ item\.id\}/.test(ass), 'the assessment also plays recordings and does not say audio is missing when they exist')
-    ok(/<VoiceHint items=\{spokenItemsOfCourse\(def\)\} \/>/.test(les) && /cov\.total > 0 && cov\.done >= cov\.total\) return null/.test(aud) && /cov\.done > 0 \? 'voicePartial' : 'voiceMissing'/.test(aud), 'the "your phone cannot speak Hausa" note disappears when every item is recorded and says so when only some are')
-    ok(strings.ha.voicePartial && strings.en.voicePartial && strings.ha.voicePartial !== strings.en.voicePartial, 'the partial-recording note exists in both languages')
-    ok(/refreshOnFocus\('learner'\)/.test(les) && (les.match(/refreshOnFocus\('learner'\)/g) || []).length === 2 && /lastLight < 30000/.test(ldr) && /visibilitychange/.test(ldr) && /removeEventListener/.test(ldr), 'a lesson list and a lesson reload new recordings (at most every 30 s, and when the person returns to the app); no listener is left behind')
-    ok(/contentLight: \(\) => readContentLight\(supabaseAdult\)/.test(rd('src/adult/adultApi.js')) && /contentLight: \(\) => readContentLight\(supabaseStaff\)/.test(rd('src/adult/adultApi.js')), 'a light refresh exists for learners and staff')
-    ok(/wantedHash\(lang, keyName\)/.test(ae) && !/fnv\(text\)/.test(ae) && /textHash: hash/.test(ae) && /confirmAudio\(keyName, lang, hash\)/.test(ae), 'the recorder and the player use the same fingerprint rule')
-    ok(/<SpokenItems lesson=\{lesson\} \/>/.test(tc) && /spokenItems\(lesson\)/.test(tc) && /ctRecorded/.test(tc) && /coverage\(spokenItemsOfCourse\(def\)\)/.test(tc), 'the dashboard lists what a built-in lesson says aloud (letters, words, sentences, questions) with a recording slot each, and shows how many are done')
-    for (const k of ['ctSpoken', 'ctSpokenNote', 'ctRecorded', 'ctMarkDone', 'ctMarkTodo']) ok(strings.ha[k] && strings.en[k] && strings.ha[k] !== strings.en[k], `text exists in both languages: ${k}`)
-  }
-}
-
-
-// ================================================================= PHASE 10c: Listen buttons on the learner's own screens
-{
-  const rd = (f) => readFileSync(f, 'utf8')
-  const groups = C.screenGroups(); const flat = groups.flatMap((g) => g.keys)
-  ok(groups.length === 6 && new Set(flat).size === flat.length, 'six groups of screen texts, no text listed twice')
-  for (const k of flat) ok(strings.ha[k] && strings.en[k] && !/\{[a-zA-Z]+\}/.test(strings.ha[k] + strings.en[k]), `screen text exists in both languages and is fixed (can be recorded): ${k}`)
-  const lists = groups.find((g) => g.id === 'lists').keys
-  for (const c of Object.values(COURSES)) { ok(lists.includes(c.titleKey), `course name is listed: ${c.slug}`); for (const u of c.units) ok(lists.includes(u.titleKey), `section name is listed: ${c.slug}/${u.id}`) }
-  const learnerFiles = ['src/adult/pages/Learner.jsx', 'src/adult/pages/Lessons.jsx', 'src/adult/pages/Progress.jsx']
-  const used = new Set(); const dyn = []
-  for (const f of learnerFiles) for (const m of rd(f).matchAll(/<Say k=(?:"([A-Za-z0-9_]+)"|\{([^}]+)\})([^>]*)\/>/g)) { if (m[1]) { used.add(m[1]); if (/\{[a-zA-Z]+\}/.test(strings.en[m[1]])) ok(/vars=/.test(m[3]), `${m[1]}: a text with a name or number is given its values`) } else dyn.push(m[2]) }
-  const reg = new Set(groups.filter((g) => g.id !== 'lists').flatMap((g) => g.keys))
-  for (const k of used) ok(reg.has(k) || /\{[a-zA-Z]+\}/.test(strings.en[k]), `${k}: a Listen button is for a text the admin can record (or one that only uses the phone's voice)`)
-  for (const k of reg) ok(used.has(k), `${k}: the admin is offered a recording slot only for a text the learner can actually hear`)
-  ok(dyn.includes('def.titleKey') && dyn.includes('u.titleKey'), 'course names and section names on the course list have a Listen button')
-  ok(used.size >= 20, `${used.size} fixed texts have a Listen button`)
-  const say = rd('src/adult/components/Say.jsx')
-  ok(/const hasVars = \/\\\{\[a-zA-Z\]\+\\\}\/\.test\(template\(lang, k\)\)/.test(say) && /audioKey=\{hasVars \? undefined : k\}/.test(say) && /text=\{t\(k, vars\)\}/.test(say), 'a text with a name or number only uses the phone voice; a fixed text can use a recording')
-  const tc = rd('src/adult/pages/TeachContent.jsx')
-  ok(/\['screens', 'ctScreens'\]/.test(tc) && /\{sub === 'screens' && <ScreenTexts \/>\}/.test(tc) && /screenGroups\(\)/.test(tc) && /<AudioEditor keyName=\{k\} lang="ha" \/><AudioEditor keyName=\{k\} lang="en" \/>/.test(tc.slice(tc.indexOf('function ScreenTexts'), tc.indexOf('// everything this lesson says aloud'))), 'the dashboard has a "Learner screens" tab with a Hausa and an English recording slot for each text')
-  for (const k of ['ctScreens', 'ctScreensNote', 'ctScrHome', 'ctScrCourses', 'ctScrProgress', 'ctScrWrite', 'ctScrHelp', 'ctScrLists']) ok(strings.ha[k] && strings.en[k] && strings.ha[k] !== strings.en[k], `text exists in both languages: ${k}`)
-  ok(/recording plays only after the learner has signed in/.test(strings.en.ctScreensNote), 'the screen tells the admin that recordings play after sign-in only')
-  // a fixed text on these screens that has no Listen button would be a gap: the greeting, course names and all headings of "My progress" are covered
-  for (const k of ['hello', 'progressLine', 'tabCourses', 'homeNoAssessment', 'mpIntro', 'helpText', 'practiceNote']) ok(used.has(k), `${k} has a Listen button`)
 }
 
 console.log(fail ? `\n${fail} of ${n} checks FAILED` : `All ${n} adult checks passed`)

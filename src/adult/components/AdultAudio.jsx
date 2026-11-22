@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { getAudio } from '../../lib/narration.js'
 import { useAdult } from '../AdultAuth.jsx'
 import { speak, stopSpeaking, useVoices, hasVoice } from '../speech.js'
-import { clipFor, coverage, getAudioClient } from '../content.js'
+import { clipFor, getAudioClient } from '../content.js'
 import { signedAudioUrl } from '../adultApi.js'
 
 // Plays sound for a piece of text. Order: (1) a recording the admin made or uploaded in the dashboard for this text key (audioKey), if the text has not
@@ -62,12 +62,9 @@ export default function AdultAudio({ id, text, lang, audioKey, big = false }) {
 }
 
 // A short note, shown only when the phone has no Hausa voice, so the missing buttons are explained.
-// `items` = what the course says aloud: if every item has a recording nothing is missing, so no note; if some do, the note says so.
-export function VoiceHint({ items }) {
+export function VoiceHint() {
   const { t, lang, profile } = useAdult()
   const v = useVoices()
   if (lang !== 'ha' || !v.supported || v.hasHausa || (profile && profile.audio_on === false)) return null
-  const cov = items ? coverage(items) : { total: 0, done: 0 }
-  if (cov.total > 0 && cov.done >= cov.total) return null
-  return <p className="ad-banner">{t(cov.done > 0 ? 'voicePartial' : 'voiceMissing')}</p>
+  return <p className="ad-banner">{t('voiceMissing')}</p>
 }

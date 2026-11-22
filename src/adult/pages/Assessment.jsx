@@ -4,7 +4,6 @@ import { learnerApi, staffApi } from '../adultApi.js'
 import { DOMAINS, ITEMS, recommend, scoreAnswers } from '../assessment.js'
 import HandwritingCanvas from '../components/HandwritingCanvas.jsx'
 import AdultAudio, { hasAdultAudio } from '../components/AdultAudio.jsx'
-import { clipFor } from '../content.js'
 import { hasVoice, useVoices } from '../speech.js'
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : 'a' + Date.now() + Math.random().toString(16).slice(2))
@@ -49,7 +48,7 @@ export default function Assessment({ mode = 'self', learnerId = null, learnerNam
   const [result, setResult] = useState(null)
   const canvas = useRef(null)
 
-  const noAudio = !assisted && !hasVoice(lang) && !steps.some((s) => s.needsAudio && (hasAdultAudio(lang, s.id) || clipFor(lang, 'ip_' + s.id)))
+  const noAudio = !assisted && !hasVoice(lang) && !steps.some((s) => s.needsAudio && hasAdultAudio(lang, s.id))
   const labels = { pencil: t('pencil'), eraser: t('eraser'), undo: t('undo'), redo: t('redo'), clear: t('clear'), area: t('writeHere') }
 
   const finish = async (final) => {
@@ -107,7 +106,7 @@ export default function Assessment({ mode = 'self', learnerId = null, learnerNam
       <div className="ad-progress" role="progressbar" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={idx}><i style={{ width: (idx / steps.length) * 100 + '%' }} /></div>
       <p className="ad-note">{t('asStep', { n: idx + 1, total: steps.length })}</p>
       <p className="ad-big">{t('ip_' + item.id)}</p>
-      <AdultAudio id={item.id} text={t('ip_' + item.id)} audioKey={'ip_' + item.id} big />
+      <AdultAudio id={item.id} text={t('ip_' + item.id)} big />
       {item.question && <p className="ad-huge">{item.question}</p>}
       {item.dots && <div className="ad-dotsrow" aria-label={t('ip_n2_count')}>{Array.from({ length: item.dots }, (_, i) => <i key={i} />)}</div>}
       {item.kind === 'choice' && (
